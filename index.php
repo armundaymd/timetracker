@@ -9,6 +9,7 @@ $api_url = "http://" . $_SERVER['HTTP_HOST'] . dirname($_SERVER['PHP_SELF']) . "
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="theme-color" content="#0f172a" id="meta-theme-color">
+    <base href="<?php echo htmlspecialchars(rtrim(dirname($_SERVER['PHP_SELF']), '/\\') . '/'); ?>">
     <title>My Personal Tracker</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="preconnect" href="https://fonts.googleapis.com">

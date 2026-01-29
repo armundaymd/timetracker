@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   plugins: [react()],
+  base: '/time/client/dist/',
   server: {
     proxy: {
       '/api.php': { target: 'http://www.adamrmunday.com/time', changeOrigin: true },
