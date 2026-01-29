@@ -2,16 +2,55 @@
 require 'config.php';
 header('Content-Type: application/json');
 
-// Check Login
-if (!isset($_SESSION['user_id'])) {
+$action = $_GET['action'] ?? '';
+$data = json_decode(file_get_contents('php://input'), true) ?? [];
+if (!is_array($data)) $data = [];
+
+// Resolve user: Bearer token (for native apps) or session (for web)
+$user_id = null;
+$authHeader = $_SERVER['HTTP_AUTHORIZATION'] ?? '';
+if (preg_match('/Bearer\s+(\S+)/', $authHeader, $m)) {
+    $stmt = $pdo->prepare("SELECT id FROM users WHERE api_token = ?");
+    $stmt->execute([$m[1]]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    if ($row) $user_id = (int) $row['id'];
+}
+if ($user_id === null && !empty($_GET['token'])) {
+    $stmt = $pdo->prepare("SELECT id FROM users WHERE api_token = ?");
+    $stmt->execute([$_GET['token']]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    if ($row) $user_id = (int) $row['id'];
+}
+if ($user_id === null && isset($_SESSION['user_id'])) {
+    $user_id = (int) $_SESSION['user_id'];
+}
+
+// Login for native apps (no session): POST username + password, returns token
+if ($action === 'login') {
+    $username = trim($data['username'] ?? '');
+    $password = $data['password'] ?? '';
+    if ($username === '' || $password === '') {
+        http_response_code(400);
+        echo json_encode(['error' => 'Username and password required']);
+        exit;
+    }
+    $stmt = $pdo->prepare("SELECT id, password, api_token FROM users WHERE username = ?");
+    $stmt->execute([$username]);
+    $user = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$user || !password_verify($password, $user['password'])) {
+        http_response_code(401);
+        echo json_encode(['error' => 'Invalid credentials']);
+        exit;
+    }
+    echo json_encode(['token' => $user['api_token']]);
+    exit;
+}
+
+if ($user_id === null) {
     http_response_code(401);
     echo json_encode(['error' => 'Unauthorized']);
     exit;
 }
-
-$user_id = $_SESSION['user_id'];
-$action = $_GET['action'] ?? '';
-$data = json_decode(file_get_contents('php://input'), true);
 
 try {
     // 1. GET STATUS (Current Timer)
