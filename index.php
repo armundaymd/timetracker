@@ -114,7 +114,6 @@ $api_url = "http://" . $_SERVER['HTTP_HOST'] . dirname($_SERVER['PHP_SELF']) . "
         .fc .fc-button { border-radius: var(--radius-sm); font-weight: 500; }
         .fc .fc-button-primary { background: var(--accent); border-color: var(--accent); }
         .fc .fc-button-primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
-        a[href="settings.php"] { min-height: 44px; align-self: center; border-radius: var(--radius-sm); }
         .nav-icon { width: 22px; height: 22px; display: inline-block; vertical-align: middle; }
         .nav-icon svg { width: 100%; height: 100%; fill: currentColor; }
         .fw-500 { font-weight: 500; }
