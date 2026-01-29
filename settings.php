@@ -6,31 +6,81 @@ if (!isset($_SESSION['user_id'])) { header("Location: login.php"); exit; }
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Settings – Time Tracker</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#0f172a">
+    <title>Settings · Time Tracker</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&display=swap" rel="stylesheet">
     <style>
-        body { background-color: #f4f6f9; padding-bottom: 50px; }
-        .settings-card { background: white; padding: 24px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); max-width: 560px; }
-        .quick-btn-row { display: flex; gap: 8px; margin-bottom: 8px; align-items: center; }
-        .quick-btn-row input { flex: 1; }
+        :root {
+            --bg-page: #f1f5f9;
+            --bg-card: #ffffff;
+            --border: #e2e8f0;
+            --text: #0f172a;
+            --text-muted: #64748b;
+            --accent: #0ea5e9;
+            --accent-hover: #0284c7;
+            --radius: 14px;
+            --radius-sm: 10px;
+            --shadow: 0 1px 3px rgba(0,0,0,0.06);
+            --shadow-lg: 0 4px 20px rgba(0,0,0,0.08);
+        }
+        * { -webkit-tap-highlight-color: transparent; }
+        body {
+            font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-page);
+            color: var(--text);
+            padding-bottom: 2rem;
+            min-height: 100vh;
+        }
+        .settings-card {
+            background: var(--bg-card);
+            padding: 1.5rem;
+            border-radius: var(--radius);
+            box-shadow: var(--shadow-lg);
+            border: 1px solid var(--border);
+            max-width: 560px;
+        }
+        .quick-btn-row {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 0.5rem;
+            align-items: center;
+        }
+        .quick-btn-row input {
+            flex: 1;
+            min-height: 44px;
+            font-size: 1rem;
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--border);
+        }
+        .quick-btn-row input:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(14,165,233,0.15);
+        }
+        .quick-btn-row .btn { min-height: 44px; min-width: 44px; border-radius: var(--radius-sm); }
+        .btn-primary { background: var(--accent); border: none; font-weight: 600; border-radius: var(--radius-sm); }
+        .btn-primary:hover { background: var(--accent-hover); }
+        .fw-600 { font-weight: 600; }
     </style>
 </head>
 <body>
-<div class="container py-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h4 class="mb-0">Settings</h4>
-        <a href="index.php" class="btn btn-outline-secondary btn-sm">← Back to Tracker</a>
+<div class="container py-4 px-3">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
+        <h4 class="mb-0 fw-600">Settings</h4>
+        <a href="index.php" class="btn btn-outline-secondary btn-sm" style="min-height: 44px;">← Back to Tracker</a>
     </div>
 
     <div class="settings-card">
-        <h5 class="mb-2">Quick-action buttons</h5>
+        <h5 class="mb-2 fw-600">Quick-action buttons</h5>
         <p class="text-muted small mb-3">These appear next to "What are you doing?" so you can start common tasks with one click. Add up to 8.</p>
         <div id="quick-buttons-list"></div>
-        <button type="button" class="btn btn-outline-primary btn-sm mt-2" id="btn-add-quick">+ Add button</button>
-        <div class="mt-3">
-            <button type="button" class="btn btn-primary" id="btn-save">Save</button>
-            <span id="save-status" class="ms-2 text-muted small"></span>
+        <button type="button" class="btn btn-outline-primary btn-sm mt-2" id="btn-add-quick" style="min-height: 44px;">+ Add button</button>
+        <div class="mt-3 d-flex align-items-center flex-wrap gap-2">
+            <button type="button" class="btn btn-primary" id="btn-save" style="min-height: 44px;">Save</button>
+            <span id="save-status" class="text-muted small"></span>
         </div>
     </div>
 </div>

@@ -7,20 +7,108 @@ $api_url = "http://" . $_SERVER['HTTP_HOST'] . dirname($_SERVER['PHP_SELF']) . "
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#0f172a">
     <title>My Personal Tracker</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap" rel="stylesheet">
     <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js'></script>
     <style>
-        body { background-color: #f4f6f9; padding-bottom: 50px; }
-        .timer-bar { background: white; padding: 1.5rem; box-shadow: 0 4px 12px rgba(0,0,0,0.05); position: sticky; top: 0; z-index: 1000; }
-        #timer-display { font-family: 'Courier New', monospace; font-weight: bold; font-size: 2rem; color: #2c3e50; min-width: 160px; text-align: center; }
-        #calendar-container { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); margin-top: 20px; }
-        .fc-event { cursor: pointer; }
-        .quick-btn { margin-bottom: 4px; }
-        .btn-star { font-size: 1.25rem; padding: 0.375rem 0.5rem; line-height: 1; }
-        .favorites-row { margin-top: 10px; flex-wrap: wrap; gap: 6px; }
-        .favorite-chip { cursor: pointer; }
+        :root {
+            --bg-page: #f1f5f9;
+            --bg-card: #ffffff;
+            --border: #e2e8f0;
+            --text: #0f172a;
+            --text-muted: #64748b;
+            --accent: #0ea5e9;
+            --accent-hover: #0284c7;
+            --success: #10b981;
+            --success-hover: #059669;
+            --danger: #ef4444;
+            --radius: 14px;
+            --radius-sm: 10px;
+            --shadow: 0 1px 3px rgba(0,0,0,0.06);
+            --shadow-lg: 0 4px 20px rgba(0,0,0,0.08);
+        }
+        * { -webkit-tap-highlight-color: transparent; }
+        body {
+            font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-page);
+            color: var(--text);
+            padding-bottom: 2rem;
+            min-height: 100vh;
+        }
+        .timer-bar {
+            background: var(--bg-card);
+            padding: 1rem 0 1.25rem;
+            box-shadow: var(--shadow);
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            border-bottom: 1px solid var(--border);
+        }
+        .timer-bar .container { max-width: 900px; }
+        #quick-buttons-wrap .btn { font-size: 0.875rem; padding: 0.5rem 0.75rem; min-height: 44px; border-radius: var(--radius-sm); }
+        #task-input {
+            font-size: 1rem; /* 16px avoids iOS zoom on focus */
+            min-height: 48px;
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--border);
+        }
+        #task-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(14,165,233,0.15); }
+        .btn-star {
+            font-size: 1.35rem; padding: 0 0.6rem; min-width: 48px; min-height: 48px;
+            border-radius: var(--radius-sm); border: 1px solid var(--border);
+        }
+        #timer-display {
+            font-variant-numeric: tabular-nums;
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--text);
+            min-width: 100px;
+            text-align: center;
+        }
+        @media (min-width: 768px) {
+            #timer-display { font-size: 1.75rem; min-width: 120px; }
+        }
+        #btn-action {
+            min-height: 48px; padding-left: 1.5rem; padding-right: 1.5rem;
+            border-radius: var(--radius-sm); font-weight: 600; border: none;
+        }
+        #btn-action.btn-success { background: var(--success); }
+        #btn-action.btn-success:hover { background: var(--success-hover); }
+        #btn-action.btn-danger { background: var(--danger); }
+        #btn-action.btn-danger:hover { background: #dc2626; }
+        .favorites-row { margin-top: 0.75rem; flex-wrap: wrap; gap: 0.5rem; }
+        .favorite-chip {
+            cursor: pointer; padding: 0.4rem 0.75rem; font-size: 0.875rem;
+            border-radius: 999px; background: var(--bg-page); border: 1px solid var(--border);
+            transition: background 0.15s, border-color 0.15s;
+        }
+        .favorite-chip:hover, .favorite-chip:active { background: var(--border); }
+        #calendar-container {
+            background: var(--bg-card);
+            padding: 1.25rem;
+            border-radius: var(--radius);
+            box-shadow: var(--shadow-lg);
+            margin-top: 1.5rem;
+            border: 1px solid var(--border);
+        }
+        @media (max-width: 767px) {
+            #calendar-container { padding: 0.75rem; margin-left: -0.5rem; margin-right: -0.5rem; border-radius: 0; border-left: none; border-right: none; }
+        }
+        #calendar-container h4 { font-weight: 600; font-size: 1.125rem; }
+        .fc { font-family: inherit; }
+        .fc-event { cursor: pointer; border-radius: 6px; }
+        .fc-theme-standard .fc-scrollgrid { border-color: var(--border); }
+        .fc .fc-button { border-radius: var(--radius-sm); font-weight: 500; }
+        .fc .fc-button-primary { background: var(--accent); border-color: var(--accent); }
+        .fc .fc-button-primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+        a[href="settings.php"] { min-height: 44px; align-self: center; border-radius: var(--radius-sm); }
+        .fw-500 { font-weight: 500; }
+        .fw-600 { font-weight: 600; }
     </style>
 </head>
 <body>
@@ -31,54 +119,56 @@ $api_url = "http://" . $_SERVER['HTTP_HOST'] . dirname($_SERVER['PHP_SELF']) . "
             <div id="quick-buttons-wrap" class="d-flex flex-wrap gap-2 align-items-center"></div>
             <a href="settings.php" class="btn btn-outline-secondary btn-sm ms-auto">Settings</a>
         </div>
-        <div class="d-flex flex-column flex-md-row align-items-center gap-3">
-            <div class="flex-grow-1 w-100 d-flex">
-                <input type="text" id="task-input" class="form-control form-control-lg" placeholder="What are you doing?" list="history-list">
+        <div class="d-flex flex-column flex-md-row align-items-stretch gap-2 gap-md-3">
+            <div class="flex-grow-1 w-100 d-flex gap-2">
+                <input type="text" id="task-input" class="form-control" placeholder="What are you doing?" list="history-list" autocomplete="off">
                 <datalist id="history-list"></datalist>
-                <button type="button" id="btn-star" class="btn btn-outline-secondary btn-star ms-1" title="Star as favorite">☆</button>
+                <button type="button" id="btn-star" class="btn btn-outline-secondary btn-star flex-shrink-0" title="Star as favorite" aria-label="Star as favorite">☆</button>
             </div>
-            <div id="timer-display">00:00:00</div>
-            <button id="btn-action" class="btn btn-success btn-lg px-5">Start</button>
+            <div class="d-flex align-items-center gap-2 flex-md-nowrap">
+                <div id="timer-display" class="order-2 order-md-1">00:00:00</div>
+                <button type="button" id="btn-action" class="btn btn-success flex-grow-1 flex-md-grow-0 order-1 order-md-2">Start</button>
+            </div>
         </div>
         <div id="favorites-row" class="d-flex favorites-row align-items-center" style="display: none;"></div>
     </div>
 </div>
 
-<div class="container" id="calendar-container">
-    <div class="d-flex justify-content-between mb-3">
-        <h4>My Schedule</h4>
-        <button class="btn btn-outline-secondary btn-sm" onclick="alert('Subscription URL:\n<?php echo $api_url; ?>')">📅 Subscribe to Calendar</button>
+<div class="container px-3 px-md-4" id="calendar-container">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+        <h4 class="mb-0">My Schedule</h4>
+        <button type="button" class="btn btn-outline-secondary btn-sm" style="min-height: 44px;" onclick="alert('Subscription URL:\n<?php echo addslashes($api_url); ?>')">Subscribe to Calendar</button>
     </div>
     <div id="calendar"></div>
 </div>
 
 <div class="modal fade" id="eventModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="modalTitle">Edit Entry</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+    <div class="modal-dialog modal-dialog-centered modal-fullscreen-sm-down">
+        <div class="modal-content" style="border-radius: var(--radius); border: 1px solid var(--border);">
+            <div class="modal-header border-bottom" style="border-color: var(--border) !important;">
+                <h5 class="modal-title fw-600" id="modalTitle">Edit Entry</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
                 <input type="hidden" id="entry-id">
                 <div class="mb-3">
-                    <label>Task Description</label>
-                    <input type="text" id="entry-title" class="form-control" list="history-list">
+                    <label class="form-label fw-500">Task Description</label>
+                    <input type="text" id="entry-title" class="form-control" list="history-list" style="font-size: 1rem;">
                 </div>
-                <div class="row">
-                    <div class="col-6 mb-3">
-                        <label>Start Time</label>
-                        <input type="datetime-local" id="entry-start" class="form-control">
+                <div class="row g-3">
+                    <div class="col-12 col-sm-6">
+                        <label class="form-label fw-500">Start (24h)</label>
+                        <input type="datetime-local" id="entry-start" class="form-control" style="font-size: 1rem;">
                     </div>
-                    <div class="col-6 mb-3">
-                        <label>End Time</label>
-                        <input type="datetime-local" id="entry-end" class="form-control">
+                    <div class="col-12 col-sm-6">
+                        <label class="form-label fw-500">End (24h)</label>
+                        <input type="datetime-local" id="entry-end" class="form-control" style="font-size: 1rem;">
                     </div>
                 </div>
             </div>
-            <div class="modal-footer justify-content-between">
+            <div class="modal-footer justify-content-between border-top" style="border-color: var(--border) !important;">
                 <button type="button" class="btn btn-danger" id="btn-delete" onclick="deleteEvent()" style="display:none;">Delete</button>
-                <div>
+                <div class="d-flex gap-2">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                     <button type="button" class="btn btn-primary" onclick="saveEvent()">Save</button>
                 </div>
@@ -104,8 +194,13 @@ document.addEventListener('DOMContentLoaded', function() {
         editable: true,
         selectable: true,
         nowIndicator: true,
-        scrollTime: '08:00:00', // Scroll to 8 AM by default
-        
+        scrollTime: '08:00:00',
+        slotMinTime: '00:00:00',
+        slotMaxTime: '24:00:00',
+        slotLabelFormat: { hour: '2-digit', minute: '2-digit', hour12: false },
+        eventTimeFormat: { hour: '2-digit', minute: '2-digit', hour12: false },
+        height: window.innerWidth < 768 ? 'auto' : 580,
+        windowResize: function() { calendar.updateSize(); },
         // Click to Edit
         eventClick: function(info) {
             openModal(info.event);
