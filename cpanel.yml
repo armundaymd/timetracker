@@ -1,0 +1,6 @@
+---
+deployment:
+  tasks:
+    - export DEPLOYPATH=/home/adamrmunday/public_html/time/
+    - /bin/mkdir -p $DEPLOYPATH
+    - /bin/rsync -av --delete --exclude '.git' --exclude '.cpanel.yml' . $DEPLOYPATH
