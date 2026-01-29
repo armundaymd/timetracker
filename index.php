@@ -135,11 +135,30 @@ $api_url = "http://" . $_SERVER['HTTP_HOST'] . dirname($_SERVER['PHP_SELF']) . "
 </div>
 
 <div class="container px-3 px-md-4" id="calendar-container">
-    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
         <h4 class="mb-0">My Schedule</h4>
-        <button type="button" class="btn btn-outline-secondary btn-sm" style="min-height: 44px;" onclick="alert('Subscription URL:\n<?php echo addslashes($api_url); ?>')">Subscribe to Calendar</button>
+        <button type="button" class="btn btn-outline-secondary btn-sm" style="min-height: 44px;" id="btn-subscribe-calendar">Subscribe to Calendar</button>
     </div>
     <div id="calendar"></div>
+</div>
+
+<div class="modal fade" id="subscribeModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" style="border-radius: var(--radius); border: 1px solid var(--border);">
+            <div class="modal-header border-bottom" style="border-color: var(--border) !important;">
+                <h5 class="modal-title fw-600">Subscribe to Calendar</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted small mb-2">Add this URL to your calendar app (Google Calendar, Outlook, Apple Calendar, etc.) to see your tasks.</p>
+                <input type="text" id="subscribe-url" class="form-control font-monospace small" value="<?php echo htmlspecialchars($api_url); ?>" readonly style="font-size: 0.8rem;">
+                <div class="mt-3 d-flex gap-2 align-items-center">
+                    <button type="button" class="btn btn-primary" id="btn-copy-subscribe" style="min-height: 44px;">Copy to clipboard</button>
+                    <span id="subscribe-copy-status" class="text-success small fw-500" style="display: none;">Copied!</span>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
 <div class="modal fade" id="eventModal" tabindex="-1">
@@ -183,8 +202,19 @@ let calendar;
 let timerInterval;
 let isRunning = false;
 const modal = new bootstrap.Modal(document.getElementById('eventModal'));
+const subscribeModal = new bootstrap.Modal(document.getElementById('subscribeModal'));
 
 document.addEventListener('DOMContentLoaded', function() {
+    document.getElementById('btn-subscribe-calendar').addEventListener('click', function() {
+        subscribeModal.show();
+    });
+    document.getElementById('subscribeModal').addEventListener('shown.bs.modal', function() {
+        copySubscribeUrl();
+    });
+    document.getElementById('btn-copy-subscribe').addEventListener('click', function() {
+        copySubscribeUrl();
+    });
+
     // 1. INIT CALENDAR
     var calendarEl = document.getElementById('calendar');
     calendar = new FullCalendar.Calendar(calendarEl, {
@@ -363,6 +393,29 @@ function updateStarState() {
     const btn = document.getElementById('btn-star');
     btn.textContent = favoritesList.includes(title) ? '★' : '☆';
     btn.title = favoritesList.includes(title) ? 'Unstar favorite' : 'Star as favorite';
+}
+
+function copySubscribeUrl() {
+    const input = document.getElementById('subscribe-url');
+    const status = document.getElementById('subscribe-copy-status');
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(input.value).then(function() {
+            status.style.display = 'inline';
+            setTimeout(function() { status.style.display = 'none'; }, 2500);
+        }).catch(function() {
+            input.select();
+            document.execCommand('copy');
+            status.textContent = 'Copied!';
+            status.style.display = 'inline';
+            setTimeout(function() { status.style.display = 'none'; }, 2500);
+        });
+    } else {
+        input.select();
+        document.execCommand('copy');
+        status.textContent = 'Copied!';
+        status.style.display = 'inline';
+        setTimeout(function() { status.style.display = 'none'; }, 2500);
+    }
 }
 
 function toggleFavorite() {
