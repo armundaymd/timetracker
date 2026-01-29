@@ -54,7 +54,9 @@ $api_url = "http://" . $_SERVER['HTTP_HOST'] . dirname($_SERVER['PHP_SELF']) . "
         .timer-bar .container > .d-flex:first-child { width: 100%; justify-content: center; }
         .timer-bar .container > .d-flex:first-child .ms-auto { margin-left: auto; margin-right: auto; }
         .timer-display-row { display: flex; justify-content: center; align-items: center; }
-        #quick-buttons-wrap .btn { font-size: 0.875rem; padding: 0.5rem 0.75rem; min-height: 44px; border-radius: var(--radius-sm); }
+        #quick-buttons-wrap .btn,
+        #project-buttons-wrap .btn { font-size: 0.875rem; padding: 0.5rem 0.75rem; min-height: 44px; border-radius: var(--radius-sm); }
+        .nav-sep { width: 1px; align-self: stretch; background: var(--border); margin: 0 0.25rem; border: none; }
         #task-input {
             font-size: 1rem; /* 16px avoids iOS zoom on focus */
             min-height: 48px;
@@ -93,18 +95,19 @@ $api_url = "http://" . $_SERVER['HTTP_HOST'] . dirname($_SERVER['PHP_SELF']) . "
             transition: background 0.15s, border-color 0.15s;
         }
         .favorite-chip:hover, .favorite-chip:active { background: var(--border); }
-        #calendar-container {
+        .page-card {
             background: var(--bg-card);
-            padding: 1.25rem;
+            border: 1px solid var(--border);
             border-radius: var(--radius);
             box-shadow: var(--shadow-lg);
+            padding: 1.25rem;
+        }
+        #calendar-container {
             margin-top: 1.5rem;
-            border: 1px solid var(--border);
         }
         @media (max-width: 767px) {
-            #calendar-container { padding: 0.75rem; margin-left: -0.5rem; margin-right: -0.5rem; border-radius: 0; border-left: none; border-right: none; }
+            #calendar-container { padding: 0.75rem; margin-left: -0.5rem; margin-right: -0.5rem; border-radius: var(--radius); }
         }
-        #calendar-container h4 { font-weight: 600; font-size: 1.125rem; }
         .fc { font-family: inherit; }
         .fc-event { cursor: pointer; border-radius: 6px; }
         .fc-theme-standard .fc-scrollgrid { border-color: var(--border); }
@@ -166,6 +169,7 @@ $api_url = "http://" . $_SERVER['HTTP_HOST'] . dirname($_SERVER['PHP_SELF']) . "
     <div class="container">
         <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
             <div class="ms-auto d-flex gap-2 align-items-center">
+                <button type="button" class="btn btn-outline-secondary btn-sm d-flex align-items-center justify-content-center" id="btn-subscribe-calendar" title="Subscribe to calendar" aria-label="Subscribe to calendar" style="min-height: 44px; min-width: 44px; padding: 0;"><span class="nav-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10zm0-12H5V6h14v2z"/></svg></span></button>
                 <button type="button" class="btn btn-outline-secondary btn-sm" id="btn-theme" title="Toggle dark mode" aria-label="Toggle dark mode" style="min-height: 44px; min-width: 44px; padding: 0;">🌙</button>
                 <button type="button" class="btn btn-outline-secondary btn-sm" id="btn-undo" title="Undo last change" style="min-height: 44px; display: none;">Undo</button>
                 <a href="analytics.php" class="btn btn-outline-secondary btn-sm d-flex align-items-center justify-content-center" style="min-height: 44px; min-width: 44px; padding: 0;" title="Analytics" aria-label="Analytics"><span class="nav-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 9.2h3V19H5V9.2zM10.6 5h2.8v14h-2.8V5zm5.6 8H19v6h-2.8v-6z"/></svg></span></a>
@@ -186,20 +190,15 @@ $api_url = "http://" . $_SERVER['HTTP_HOST'] . dirname($_SERVER['PHP_SELF']) . "
             </div>
             <div id="recommendations-dropdown" class="recommendations-dropdown" role="listbox"></div>
         </div>
-        <div id="quick-buttons-wrap" class="d-flex flex-wrap gap-2 align-items-center justify-content-center mb-2"></div>
-        <div class="d-flex justify-content-center">
-            <select id="project-select" class="form-select" style="max-width: 200px; min-height: 44px;" title="Category (type Name: task to use)">
-                <option value="">No project</option>
-            </select>
+        <div class="d-flex flex-wrap align-items-center justify-content-center gap-2 mb-2">
+            <div id="quick-buttons-wrap" class="d-flex flex-wrap gap-2 align-items-center"></div>
+            <span class="nav-sep" aria-hidden="true"></span>
+            <div id="project-buttons-wrap" class="d-flex flex-wrap gap-2 align-items-center"></div>
         </div>
     </div>
 </div>
 
-<div class="container px-3 px-md-4" id="calendar-container">
-        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
-        <h4 class="mb-0">My Schedule</h4>
-        <button type="button" class="btn btn-outline-secondary btn-sm" style="min-height: 44px;" id="btn-subscribe-calendar">Subscribe to Calendar</button>
-    </div>
+<div class="container px-3 px-md-4 page-card" id="calendar-container">
     <div id="calendar"></div>
 </div>
 
@@ -315,6 +314,7 @@ document.addEventListener('DOMContentLoaded', function() {
         selectable: true,
         nowIndicator: true,
         eventResizableFromStart: true,
+        allDaySlot: false,
         scrollTime: '08:00:00',
         slotMinTime: '00:00:00',
         slotMaxTime: '24:00:00',
@@ -351,12 +351,6 @@ document.addEventListener('DOMContentLoaded', function() {
     loadQuickButtons();
     loadProjects();
     checkTimerStatus();
-
-    document.getElementById('project-select').addEventListener('change', function() {
-        var opt = this.options[this.selectedIndex];
-        if (opt.value) document.getElementById('task-input').value = opt.text + ': ';
-        this.selectedIndex = 0;
-    });
 
     document.getElementById('task-input').addEventListener('input', function() {
         updateStarState();
@@ -395,14 +389,30 @@ function loadProjects() {
     fetch('api.php?action=projects')
         .then(res => res.json())
         .then(data => {
-            var sel = document.getElementById('project-select');
-            sel.innerHTML = '<option value="">No project</option>';
+            var wrap = document.getElementById('project-buttons-wrap');
+            wrap.innerHTML = '';
+            var noneBtn = document.createElement('button');
+            noneBtn.type = 'button';
+            noneBtn.className = 'btn btn-outline-secondary btn-sm';
+            noneBtn.textContent = 'No project';
+            noneBtn.title = 'No project';
+            noneBtn.addEventListener('click', function() {
+                document.getElementById('task-input').value = document.getElementById('task-input').value.replace(/^[^:]+:\s*/, '') || '';
+            });
+            wrap.appendChild(noneBtn);
             (data || []).forEach(function(p) {
-                var opt = document.createElement('option');
-                opt.value = p.id;
-                opt.textContent = p.name;
-                opt.style.borderLeft = '3px solid ' + (p.color || '#0ea5e9');
-                sel.appendChild(opt);
+                var btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'btn btn-outline-secondary btn-sm';
+                btn.textContent = p.name;
+                btn.title = p.name;
+                btn.style.borderLeftWidth = '3px';
+                btn.style.borderLeftStyle = 'solid';
+                btn.style.borderLeftColor = p.color || 'var(--accent)';
+                btn.addEventListener('click', function() {
+                    document.getElementById('task-input').value = p.name + ': ';
+                });
+                wrap.appendChild(btn);
             });
         })
         .catch(function() {});

@@ -52,12 +52,14 @@ if (!isset($_SESSION['user_id'])) { header("Location: login.php"); exit; }
             padding-bottom: 2rem;
             min-height: 100vh;
         }
-        .settings-card {
+        .page-card {
             background: var(--bg-card);
-            padding: 1.5rem;
+            border: 1px solid var(--border);
             border-radius: var(--radius);
             box-shadow: var(--shadow-lg);
-            border: 1px solid var(--border);
+            padding: 1.25rem;
+        }
+        .settings-card {
             max-width: 560px;
         }
         .quick-btn-row {
@@ -93,7 +95,7 @@ if (!isset($_SESSION['user_id'])) { header("Location: login.php"); exit; }
         <a href="index.php" class="btn btn-outline-secondary btn-sm" style="min-height: 44px;">← Back to Tracker</a>
     </div>
 
-    <div class="settings-card mb-4">
+    <div class="page-card settings-card mb-4">
         <h5 class="mb-2 fw-600">Appearance</h5>
         <div class="d-flex align-items-center justify-content-between">
             <span>Dark mode</span>
@@ -104,7 +106,7 @@ if (!isset($_SESSION['user_id'])) { header("Location: login.php"); exit; }
         </div>
     </div>
 
-    <div class="settings-card mb-4">
+    <div class="page-card settings-card mb-4">
         <h5 class="mb-2 fw-600">Change password</h5>
         <p class="text-muted small mb-3">Enter your current password and choose a new one (at least 6 characters).</p>
         <div class="mb-3">
@@ -123,7 +125,7 @@ if (!isset($_SESSION['user_id'])) { header("Location: login.php"); exit; }
         <button type="button" class="btn btn-primary" id="btn-change-password" style="min-height: 44px;">Change password</button>
     </div>
 
-    <div class="settings-card mb-4">
+    <div class="page-card settings-card mb-4">
         <h5 class="mb-2 fw-600">Projects (categories)</h5>
         <p class="text-muted small mb-3">Type <strong>ProjectName: task</strong> in the timer (e.g. Work: Fix bug) to categorize. Analytics will group by project.</p>
         <div id="projects-list"></div>
@@ -135,13 +137,13 @@ if (!isset($_SESSION['user_id'])) { header("Location: login.php"); exit; }
         <span id="project-status" class="text-muted small d-block mt-2"></span>
     </div>
 
-    <div class="settings-card mb-4">
+    <div class="page-card settings-card mb-4">
         <h5 class="mb-2 fw-600">Data export</h5>
         <p class="text-muted small mb-2">Download all your tasks as JSON for backup.</p>
         <a href="api.php?action=export" class="btn btn-outline-secondary" style="min-height: 44px;" download>Export to JSON</a>
     </div>
 
-    <div class="settings-card">
+    <div class="page-card settings-card">
         <h5 class="mb-2 fw-600">Quick-action buttons</h5>
         <p class="text-muted small mb-3">These appear next to "What are you doing?" so you can start common tasks with one click. Add up to 8.</p>
         <div id="quick-buttons-list"></div>

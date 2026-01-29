@@ -35,12 +35,14 @@ if (!isset($_SESSION['user_id'])) { header("Location: login.php"); exit; }
             padding-bottom: 2rem;
             min-height: 100vh;
         }
-        .analytics-card {
+        .page-card {
             background: var(--bg-card);
-            padding: 1.5rem;
+            border: 1px solid var(--border);
             border-radius: var(--radius);
             box-shadow: var(--shadow-lg);
-            border: 1px solid var(--border);
+            padding: 1.25rem;
+        }
+        .analytics-card {
             margin-bottom: 1.5rem;
         }
         .stat-big { font-size: 2rem; font-weight: 700; color: var(--text); }
@@ -86,7 +88,7 @@ if (!isset($_SESSION['user_id'])) { header("Location: login.php"); exit; }
         <a href="index.php" class="btn btn-outline-secondary btn-sm" style="min-height: 44px;">← Back to Tracker</a>
     </div>
 
-    <div class="analytics-card">
+    <div class="page-card analytics-card">
         <label class="form-label fw-600">Date range</label>
         <div class="row g-2 mb-3">
             <div class="col-sm">
@@ -111,7 +113,7 @@ if (!isset($_SESSION['user_id'])) { header("Location: login.php"); exit; }
         </div>
     </div>
 
-    <div class="analytics-card">
+    <div class="page-card analytics-card">
         <h5 class="mb-2 fw-600">Contribution heatmap (last 365 days)</h5>
         <p class="text-muted small mb-2">Tracked time per day. Don’t break the chain.</p>
         <div id="heatmap-container" class="heatmap-wrap"></div>
@@ -125,13 +127,13 @@ if (!isset($_SESSION['user_id'])) { header("Location: login.php"); exit; }
         </div>
     </div>
 
-    <div class="analytics-card">
+    <div class="page-card analytics-card">
         <h5 class="mb-3 fw-600">Time by activity</h5>
         <div id="activity-list"></div>
         <p id="no-data" class="text-muted small mb-0" style="display: none;">No tracked time in this range.</p>
     </div>
 
-    <div class="analytics-card" id="by-project-card">
+    <div class="page-card analytics-card" id="by-project-card">
         <h5 class="mb-3 fw-600">Time by project</h5>
         <div id="by-project-list"></div>
         <p id="no-project-data" class="text-muted small mb-0" style="display: none;">No project time in this range. Use <strong>Project: task</strong> to categorize.</p>
