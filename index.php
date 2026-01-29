@@ -117,7 +117,11 @@ $api_url = "http://" . $_SERVER['HTTP_HOST'] . dirname($_SERVER['PHP_SELF']) . "
     <div class="container">
         <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
             <div id="quick-buttons-wrap" class="d-flex flex-wrap gap-2 align-items-center"></div>
-            <a href="settings.php" class="btn btn-outline-secondary btn-sm ms-auto">Settings</a>
+            <div class="ms-auto d-flex gap-2 align-items-center">
+                <button type="button" class="btn btn-outline-secondary btn-sm" id="btn-undo" title="Undo last change" style="min-height: 44px; display: none;">Undo</button>
+                <a href="analytics.php" class="btn btn-outline-secondary btn-sm" style="min-height: 44px;">Analytics</a>
+                <a href="settings.php" class="btn btn-outline-secondary btn-sm" style="min-height: 44px;">Settings</a>
+            </div>
         </div>
         <div class="d-flex flex-column flex-md-row align-items-stretch gap-2 gap-md-3">
             <div class="flex-grow-1 w-100 d-flex gap-2">
@@ -201,6 +205,10 @@ $api_url = "http://" . $_SERVER['HTTP_HOST'] . dirname($_SERVER['PHP_SELF']) . "
 let calendar;
 let timerInterval;
 let isRunning = false;
+let lastDragResizeState = null;
+let currentEditEvent = null;
+const UNDO_MAX = 10;
+let undoStack = [];
 const modal = new bootstrap.Modal(document.getElementById('eventModal'));
 const subscribeModal = new bootstrap.Modal(document.getElementById('subscribeModal'));
 
@@ -224,6 +232,7 @@ document.addEventListener('DOMContentLoaded', function() {
         editable: true,
         selectable: true,
         nowIndicator: true,
+        eventResizableFromStart: true,
         scrollTime: '08:00:00',
         slotMinTime: '00:00:00',
         slotMaxTime: '24:00:00',
@@ -231,13 +240,23 @@ document.addEventListener('DOMContentLoaded', function() {
         eventTimeFormat: { hour: '2-digit', minute: '2-digit', hour12: false },
         height: window.innerWidth < 768 ? 'auto' : 580,
         windowResize: function() { calendar.updateSize(); },
-        // Click to Edit
         eventClick: function(info) {
             openModal(info.event);
         },
-        // Drag to Move/Resize
-        eventDrop: function(info) { updateDbEvent(info.event); },
-        eventResize: function(info) { updateDbEvent(info.event); },
+        eventDragStart: function(info) {
+            lastDragResizeState = { id: info.event.id, title: info.event.title, start: toLocalISO(info.event.start), end: info.event.end ? toLocalISO(info.event.end) : null };
+        },
+        eventResizeStart: function(info) {
+            lastDragResizeState = { id: info.event.id, title: info.event.title, start: toLocalISO(info.event.start), end: info.event.end ? toLocalISO(info.event.end) : null };
+        },
+        eventDrop: function(info) {
+            if (lastDragResizeState) { pushUndo({ type: 'update', data: lastDragResizeState }); lastDragResizeState = null; }
+            updateDbEvent(info.event);
+        },
+        eventResize: function(info) {
+            if (lastDragResizeState) { pushUndo({ type: 'update', data: lastDragResizeState }); lastDragResizeState = null; }
+            updateDbEvent(info.event);
+        },
         // Select time slot to Add
         select: function(info) {
             openModal(null, info.startStr, info.endStr);
@@ -253,10 +272,46 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('task-input').addEventListener('input', updateStarState);
     document.getElementById('task-input').addEventListener('focus', updateStarState);
     document.getElementById('btn-star').addEventListener('click', toggleFavorite);
+    document.getElementById('btn-undo').addEventListener('click', performUndo);
 
-    // Refresh calendar every 5 mins to show updated "running" blocks
     setInterval(() => calendar.refetchEvents(), 300000);
 });
+
+function pushUndo(entry) {
+    undoStack.push(entry);
+    if (undoStack.length > UNDO_MAX) undoStack.shift();
+    updateUndoButton();
+}
+
+function updateUndoButton() {
+    const btn = document.getElementById('btn-undo');
+    btn.style.display = undoStack.length ? 'inline-block' : 'none';
+}
+
+function performUndo() {
+    const entry = undoStack.pop();
+    if (!entry) return;
+    updateUndoButton();
+    if (entry.type === 'delete') {
+        fetch('api.php?action=create', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title: entry.data.title, start: entry.data.start, end: entry.data.end })
+        }).then(() => calendar.refetchEvents());
+    } else if (entry.type === 'update') {
+        fetch('api.php?action=update', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: entry.data.id, title: entry.data.title, start: entry.data.start, end: entry.data.end })
+        }).then(() => calendar.refetchEvents());
+    } else if (entry.type === 'create') {
+        fetch('api.php?action=delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: entry.data.id })
+        }).then(() => calendar.refetchEvents());
+    }
+}
 
 // --- TIMER LOGIC ---
 document.getElementById('btn-action').addEventListener('click', () => {
@@ -442,15 +497,15 @@ function toggleFavorite() {
 // --- MODAL & CALENDAR LOGIC ---
 function openModal(event, startStr = null, endStr = null) {
     if (event) {
-        // Edit Mode
+        currentEditEvent = { id: event.id, title: event.title, start: toLocalISO(event.start), end: event.end ? toLocalISO(event.end) : null };
         document.getElementById('modalTitle').innerText = 'Edit Task';
         document.getElementById('entry-id').value = event.id;
         document.getElementById('entry-title').value = event.title;
-        // Format dates for input type="datetime-local" (YYYY-MM-DDTHH:mm)
         document.getElementById('entry-start').value = toLocalISO(event.start);
         document.getElementById('entry-end').value = event.end ? toLocalISO(event.end) : '';
         document.getElementById('btn-delete').style.display = 'block';
     } else {
+        currentEditEvent = null;
         // Create Mode
         document.getElementById('modalTitle').innerText = 'New Task';
         document.getElementById('entry-id').value = '';
@@ -469,11 +524,20 @@ function saveEvent() {
     const end = document.getElementById('entry-end').value;
 
     const action = id ? 'update' : 'create';
-    
+    if (action === 'update' && currentEditEvent) {
+        pushUndo({ type: 'update', data: currentEditEvent });
+    }
+
     fetch(`api.php?action=${action}`, {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id, title, start, end })
-    }).then(() => {
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (action === 'create' && data && data.id) {
+            pushUndo({ type: 'create', data: { id: data.id } });
+        }
         modal.hide();
         calendar.refetchEvents();
     });
@@ -481,10 +545,16 @@ function saveEvent() {
 
 function deleteEvent() {
     const id = document.getElementById('entry-id').value;
-    if(!confirm("Are you sure?")) return;
-    
+    const title = document.getElementById('entry-title').value;
+    const start = document.getElementById('entry-start').value;
+    const end = document.getElementById('entry-end').value;
+    if (!confirm("Are you sure?")) return;
+
+    pushUndo({ type: 'delete', data: { title, start, end } });
+
     fetch('api.php?action=delete', {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id })
     }).then(() => {
         modal.hide();

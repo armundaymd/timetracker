@@ -71,11 +71,11 @@ try {
         echo json_encode(['status' => 'deleted']);
     }
 
-    // 7. CREATE MANUAL ENTRY
+    // 7. CREATE MANUAL ENTRY (returns new id for undo)
     elseif ($action === 'create') {
         $stmt = $pdo->prepare("INSERT INTO tasks (user_id, title, start_time, end_time, is_running) VALUES (?, ?, ?, ?, 0)");
         $stmt->execute([$user_id, $data['title'], $data['start'], $data['end']]);
-        echo json_encode(['status' => 'created']);
+        echo json_encode(['status' => 'created', 'id' => (int) $pdo->lastInsertId()]);
     }
 
     // 8. AUTOCOMPLETE HISTORY
@@ -128,6 +128,43 @@ try {
             if ($title !== '') $stmt->execute([$user_id, $title, $i]);
         }
         echo json_encode(['status' => 'saved']);
+    }
+
+    // 13. ANALYTICS (time by activity for date range)
+    elseif ($action === 'analytics') {
+        $start = $_GET['start'] ?? date('Y-m-d', strtotime('-30 days'));
+        $end = $_GET['end'] ?? date('Y-m-d');
+        $stmt = $pdo->prepare("
+            SELECT title,
+                   SUM(TIMESTAMPDIFF(SECOND, start_time, COALESCE(end_time, NOW()))) AS seconds
+            FROM tasks
+            WHERE user_id = ? AND is_running = 0
+              AND start_time >= ? AND start_time < DATE_ADD(?, INTERVAL 1 DAY)
+              AND end_time IS NOT NULL
+            GROUP BY title
+            ORDER BY seconds DESC
+        ");
+        $stmt->execute([$user_id, $start, $end]);
+        $by_activity = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $total_seconds = array_sum(array_column($by_activity, 'seconds'));
+        // Include running task in total if in range
+        $stmt = $pdo->prepare("SELECT start_time FROM tasks WHERE user_id = ? AND is_running = 1 LIMIT 1");
+        $stmt->execute([$user_id]);
+        $running = $stmt->fetch(PDO::FETCH_ASSOC);
+        if ($running) {
+            $run_start = strtotime($running['start_time']);
+            $range_start = strtotime($start);
+            $range_end = strtotime($end . ' 23:59:59');
+            if ($run_start >= $range_start && $run_start <= $range_end) {
+                $total_seconds += (time() - $run_start);
+            }
+        }
+        echo json_encode([
+            'start' => $start,
+            'end' => $end,
+            'total_seconds' => (int) $total_seconds,
+            'by_activity' => $by_activity
+        ]);
     }
 
 } catch (Exception $e) {
