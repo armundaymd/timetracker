@@ -17,18 +17,30 @@ $api_url = "http://" . $_SERVER['HTTP_HOST'] . dirname($_SERVER['PHP_SELF']) . "
         #timer-display { font-family: 'Courier New', monospace; font-weight: bold; font-size: 2rem; color: #2c3e50; min-width: 160px; text-align: center; }
         #calendar-container { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); margin-top: 20px; }
         .fc-event { cursor: pointer; }
+        .quick-btn { margin-bottom: 4px; }
+        .btn-star { font-size: 1.25rem; padding: 0.375rem 0.5rem; line-height: 1; }
+        .favorites-row { margin-top: 10px; flex-wrap: wrap; gap: 6px; }
+        .favorite-chip { cursor: pointer; }
     </style>
 </head>
 <body>
 
 <div class="timer-bar">
-    <div class="container d-flex flex-column flex-md-row align-items-center gap-3">
-        <div class="flex-grow-1 w-100">
-            <input type="text" id="task-input" class="form-control form-control-lg" placeholder="What are you doing?" list="history-list">
-            <datalist id="history-list"></datalist>
+    <div class="container">
+        <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+            <div id="quick-buttons-wrap" class="d-flex flex-wrap gap-2 align-items-center"></div>
+            <a href="settings.php" class="btn btn-outline-secondary btn-sm ms-auto">Settings</a>
         </div>
-        <div id="timer-display">00:00:00</div>
-        <button id="btn-action" class="btn btn-success btn-lg px-5">Start</button>
+        <div class="d-flex flex-column flex-md-row align-items-center gap-3">
+            <div class="flex-grow-1 w-100 d-flex">
+                <input type="text" id="task-input" class="form-control form-control-lg" placeholder="What are you doing?" list="history-list">
+                <datalist id="history-list"></datalist>
+                <button type="button" id="btn-star" class="btn btn-outline-secondary btn-star ms-1" title="Star as favorite">☆</button>
+            </div>
+            <div id="timer-display">00:00:00</div>
+            <button id="btn-action" class="btn btn-success btn-lg px-5">Start</button>
+        </div>
+        <div id="favorites-row" class="d-flex favorites-row align-items-center" style="display: none;"></div>
     </div>
 </div>
 
@@ -108,12 +120,17 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     calendar.render();
 
-    // 2. INIT HISTORY & TIMER
-    loadHistory();
+    // 2. INIT FAVORITES (then history), QUICK BUTTONS & TIMER
+    loadFavorites(); // calls loadHistory() when done so datalist gets favorites first
+    loadQuickButtons();
     checkTimerStatus();
-    
+
+    document.getElementById('task-input').addEventListener('input', updateStarState);
+    document.getElementById('task-input').addEventListener('focus', updateStarState);
+    document.getElementById('btn-star').addEventListener('click', toggleFavorite);
+
     // Refresh calendar every 5 mins to show updated "running" blocks
-    setInterval(() => calendar.refetchEvents(), 300000); 
+    setInterval(() => calendar.refetchEvents(), 300000);
 });
 
 // --- TIMER LOGIC ---
@@ -168,17 +185,109 @@ function stopClock() {
     document.getElementById('timer-display').innerText = "00:00:00";
 }
 
+let favoritesList = [];
+let quickButtonsList = [];
+
 function loadHistory() {
     fetch('api.php?action=history')
     .then(res => res.json())
     .then(data => {
         const list = document.getElementById('history-list');
         list.innerHTML = '';
-        data.forEach(item => {
+        (favoritesList || []).forEach(item => {
             let opt = document.createElement('option');
             opt.value = item;
             list.appendChild(opt);
         });
+        (data || []).forEach(item => {
+            if (!favoritesList.includes(item)) {
+                let opt = document.createElement('option');
+                opt.value = item;
+                list.appendChild(opt);
+            }
+        });
+    });
+}
+
+function loadFavorites() {
+    fetch('api.php?action=favorites')
+    .then(res => res.json())
+    .then(data => {
+        favoritesList = Array.isArray(data) ? data : [];
+        renderFavoritesRow();
+        loadHistory();
+    });
+}
+
+function renderFavoritesRow() {
+    const row = document.getElementById('favorites-row');
+    row.innerHTML = '';
+    if (favoritesList.length === 0) {
+        row.style.display = 'none';
+        return;
+    }
+    row.style.display = 'flex';
+    favoritesList.forEach(title => {
+        const chip = document.createElement('span');
+        chip.className = 'badge bg-light text-dark border favorite-chip';
+        chip.textContent = title;
+        chip.title = 'Click to use';
+        chip.addEventListener('click', () => {
+            document.getElementById('task-input').value = title;
+            document.getElementById('task-input').focus();
+            updateStarState();
+        });
+        row.appendChild(chip);
+    });
+}
+
+function loadQuickButtons() {
+    fetch('api.php?action=quick_buttons')
+    .then(res => res.json())
+    .then(data => {
+        quickButtonsList = Array.isArray(data) ? data : [];
+        const wrap = document.getElementById('quick-buttons-wrap');
+        wrap.innerHTML = '';
+        quickButtonsList.forEach(title => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'btn btn-outline-primary btn-sm quick-btn';
+            btn.textContent = title;
+            btn.addEventListener('click', () => {
+                document.getElementById('task-input').value = title;
+                document.getElementById('task-input').focus();
+                updateStarState();
+            });
+            wrap.appendChild(btn);
+        });
+    });
+}
+
+function updateStarState() {
+    const title = document.getElementById('task-input').value.trim();
+    const btn = document.getElementById('btn-star');
+    btn.textContent = favoritesList.includes(title) ? '★' : '☆';
+    btn.title = favoritesList.includes(title) ? 'Unstar favorite' : 'Star as favorite';
+}
+
+function toggleFavorite() {
+    const title = document.getElementById('task-input').value.trim();
+    if (!title) return;
+    fetch('api.php?action=toggle_favorite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title })
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.starred) {
+            if (!favoritesList.includes(title)) favoritesList.push(title);
+        } else {
+            favoritesList = favoritesList.filter(t => t !== title);
+        }
+        renderFavoritesRow();
+        loadHistory();
+        updateStarState();
     });
 }
 

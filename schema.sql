@@ -17,6 +17,26 @@ CREATE TABLE `tasks` (
   KEY `user_id` (`user_id`)
 );
 
+-- Starred task titles for quick reuse (from "What are you doing?" input)
+CREATE TABLE `user_favorites` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `user_id` int(11) NOT NULL,
+  `title` varchar(255) NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `user_title` (`user_id`, `title`),
+  KEY `user_id` (`user_id`)
+);
+
+-- Quick-action buttons shown next to the task input (configured in Settings)
+CREATE TABLE `user_quick_buttons` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `user_id` int(11) NOT NULL,
+  `title` varchar(255) NOT NULL,
+  `sort_order` int(11) NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`),
+  KEY `user_id` (`user_id`)
+);
+
 -- Insert a default user (Username: admin, Password: password)
 -- You should change the password immediately after logging in or manually via MD5/Hash
 INSERT INTO `users` (`username`, `password`, `api_token`) VALUES

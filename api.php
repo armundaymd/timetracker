@@ -85,6 +85,51 @@ try {
         echo json_encode($stmt->fetchAll(PDO::FETCH_COLUMN));
     }
 
+    // 9. TOGGLE FAVORITE (star/unstar current task title)
+    elseif ($action === 'toggle_favorite') {
+        $title = trim($data['title'] ?? '');
+        if ($title === '') {
+            echo json_encode(['error' => 'Title required']);
+            exit;
+        }
+        $stmt = $pdo->prepare("SELECT id FROM user_favorites WHERE user_id = ? AND title = ?");
+        $stmt->execute([$user_id, $title]);
+        if ($stmt->fetch()) {
+            $pdo->prepare("DELETE FROM user_favorites WHERE user_id = ? AND title = ?")->execute([$user_id, $title]);
+            echo json_encode(['starred' => false]);
+        } else {
+            $pdo->prepare("INSERT INTO user_favorites (user_id, title) VALUES (?, ?)")->execute([$user_id, $title]);
+            echo json_encode(['starred' => true]);
+        }
+    }
+
+    // 10. GET FAVORITES
+    elseif ($action === 'favorites') {
+        $stmt = $pdo->prepare("SELECT title FROM user_favorites WHERE user_id = ? ORDER BY title");
+        $stmt->execute([$user_id]);
+        echo json_encode($stmt->fetchAll(PDO::FETCH_COLUMN));
+    }
+
+    // 11. GET QUICK BUTTONS (for display next to task input)
+    elseif ($action === 'quick_buttons') {
+        $stmt = $pdo->prepare("SELECT title FROM user_quick_buttons WHERE user_id = ? ORDER BY sort_order, id");
+        $stmt->execute([$user_id]);
+        echo json_encode($stmt->fetchAll(PDO::FETCH_COLUMN));
+    }
+
+    // 12. SAVE QUICK BUTTONS (from Settings page)
+    elseif ($action === 'save_quick_buttons') {
+        $titles = $data['titles'] ?? [];
+        if (!is_array($titles)) $titles = [];
+        $titles = array_values(array_filter(array_map('trim', $titles)));
+        $pdo->prepare("DELETE FROM user_quick_buttons WHERE user_id = ?")->execute([$user_id]);
+        $stmt = $pdo->prepare("INSERT INTO user_quick_buttons (user_id, title, sort_order) VALUES (?, ?, ?)");
+        foreach ($titles as $i => $title) {
+            if ($title !== '') $stmt->execute([$user_id, $title, $i]);
+        }
+        echo json_encode(['status' => 'saved']);
+    }
+
 } catch (Exception $e) {
     http_response_code(500);
     echo json_encode(['error' => $e->getMessage()]);
