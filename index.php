@@ -112,6 +112,8 @@ $api_url = "http://" . $_SERVER['HTTP_HOST'] . dirname($_SERVER['PHP_SELF']) . "
         .fc .fc-button-primary { background: var(--accent); border-color: var(--accent); }
         .fc .fc-button-primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
         a[href="settings.php"] { min-height: 44px; align-self: center; border-radius: var(--radius-sm); }
+        .nav-icon { width: 22px; height: 22px; display: inline-block; vertical-align: middle; }
+        .nav-icon svg { width: 100%; height: 100%; fill: currentColor; }
         .fw-500 { font-weight: 500; }
         .fw-600 { font-weight: 600; }
         html.dark {
@@ -135,7 +137,15 @@ $api_url = "http://" . $_SERVER['HTTP_HOST'] . dirname($_SERVER['PHP_SELF']) . "
         html.dark .fc .fc-button:not(.fc-button-primary):hover { background: var(--border); }
         .fc .fc-col-header-cell-cushion { color: inherit; text-decoration: none; cursor: pointer; }
         html.dark .fc .fc-col-header-cell-cushion { color: inherit; }
-        .task-input-wrap { position: relative; width: 100%; max-width: 280px; }
+        html.dark .modal-content,
+        html.dark .modal-header,
+        html.dark .modal-body,
+        html.dark .modal-footer { background-color: var(--bg-card); color: var(--text); border-color: var(--border); }
+        html.dark .modal .form-control { background-color: var(--bg-page); color: var(--text); border-color: var(--border); }
+        html.dark .modal .form-label { color: var(--text); }
+        html.dark .modal .text-muted { color: var(--text-muted) !important; }
+        html.dark .modal .btn-close { filter: invert(1) grayscale(100%); opacity: 0.8; }
+        .task-input-wrap { position: relative; width: 100%; max-width: 380px; }
         #recommendations-dropdown {
             display: none; position: absolute; left: 0; right: 0; top: 100%; margin-top: 4px;
             background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-sm);
@@ -158,8 +168,8 @@ $api_url = "http://" . $_SERVER['HTTP_HOST'] . dirname($_SERVER['PHP_SELF']) . "
             <div class="ms-auto d-flex gap-2 align-items-center">
                 <button type="button" class="btn btn-outline-secondary btn-sm" id="btn-theme" title="Toggle dark mode" aria-label="Toggle dark mode" style="min-height: 44px; min-width: 44px; padding: 0;">🌙</button>
                 <button type="button" class="btn btn-outline-secondary btn-sm" id="btn-undo" title="Undo last change" style="min-height: 44px; display: none;">Undo</button>
-                <a href="analytics.php" class="btn btn-outline-secondary btn-sm" style="min-height: 44px;">Analytics</a>
-                <a href="settings.php" class="btn btn-outline-secondary btn-sm" style="min-height: 44px;">Settings</a>
+                <a href="analytics.php" class="btn btn-outline-secondary btn-sm d-flex align-items-center justify-content-center" style="min-height: 44px; min-width: 44px; padding: 0;" title="Analytics" aria-label="Analytics"><span class="nav-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 9.2h3V19H5V9.2zM10.6 5h2.8v14h-2.8V5zm5.6 8H19v6h-2.8v-6z"/></svg></span></a>
+                <a href="settings.php" class="btn btn-outline-secondary btn-sm d-flex align-items-center justify-content-center" style="min-height: 44px; min-width: 44px; padding: 0;" title="Settings" aria-label="Settings"><span class="nav-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.04.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg></span></a>
             </div>
         </div>
         <div class="timer-display-row mb-2">
@@ -170,7 +180,7 @@ $api_url = "http://" . $_SERVER['HTTP_HOST'] . dirname($_SERVER['PHP_SELF']) . "
         </div>
         <div class="task-input-wrap mb-2">
             <div class="d-flex gap-2">
-                <input type="text" id="task-input" class="form-control" placeholder="What are you doing? (or Project: task)" list="history-list" autocomplete="off">
+                <input type="text" id="task-input" class="form-control" placeholder="What are you doing?" list="history-list" autocomplete="off">
                 <datalist id="history-list"></datalist>
                 <button type="button" id="btn-star" class="btn btn-outline-secondary btn-star flex-shrink-0" title="Star as favorite" aria-label="Star as favorite">☆</button>
             </div>
