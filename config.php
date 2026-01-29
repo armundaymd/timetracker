@@ -2,8 +2,8 @@
 // config.php
 $host = 'localhost';
 $db   = 'time_tracker';
-$user = 'root';
-$pass = ''; // <--- PUT YOUR DATABASE PASSWORD HERE
+$user = 'adam_time';
+$pass = '!Icesk4t1ng'; // <--- PUT YOUR DATABASE PASSWORD HERE
 
 try {
     $pdo = new PDO("mysql:host=$host;dbname=$db;charset=utf8", $user, $pass);
