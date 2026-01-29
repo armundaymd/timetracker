@@ -50,6 +50,7 @@ $api_url = "http://" . $_SERVER['HTTP_HOST'] . dirname($_SERVER['PHP_SELF']) . "
             border-bottom: 1px solid var(--border);
         }
         .timer-bar .container { max-width: 900px; }
+        .timer-display-row { display: flex; justify-content: center; align-items: center; }
         #quick-buttons-wrap .btn { font-size: 0.875rem; padding: 0.5rem 0.75rem; min-height: 44px; border-radius: var(--radius-sm); }
         #task-input {
             font-size: 1rem; /* 16px avoids iOS zoom on focus */
@@ -64,14 +65,15 @@ $api_url = "http://" . $_SERVER['HTTP_HOST'] . dirname($_SERVER['PHP_SELF']) . "
         }
         #timer-display {
             font-variant-numeric: tabular-nums;
-            font-size: 1.5rem;
-            font-weight: 600;
+            font-size: 2.5rem;
+            font-weight: 700;
             color: var(--text);
-            min-width: 100px;
             text-align: center;
+            letter-spacing: 0.02em;
+            line-height: 1.2;
         }
         @media (min-width: 768px) {
-            #timer-display { font-size: 1.75rem; min-width: 120px; }
+            #timer-display { font-size: 3.25rem; }
         }
         #btn-action {
             min-height: 48px; padding-left: 1.5rem; padding-right: 1.5rem;
@@ -146,16 +148,19 @@ $api_url = "http://" . $_SERVER['HTTP_HOST'] . dirname($_SERVER['PHP_SELF']) . "
                 <a href="settings.php" class="btn btn-outline-secondary btn-sm" style="min-height: 44px;">Settings</a>
             </div>
         </div>
+        <div class="timer-display-row mb-3">
+            <div id="timer-display">00:00:00</div>
+        </div>
         <div class="d-flex flex-column flex-md-row align-items-stretch gap-2 gap-md-3">
             <div class="flex-grow-1 w-100 d-flex gap-2">
-                <input type="text" id="task-input" class="form-control" placeholder="What are you doing?" list="history-list" autocomplete="off">
+                <select id="project-select" class="form-select flex-shrink-0" style="max-width: 140px; min-height: 48px;" title="Category (type Name: task to use)">
+                    <option value="">No project</option>
+                </select>
+                <input type="text" id="task-input" class="form-control" placeholder="What are you doing? (or Project: task)" list="history-list" autocomplete="off">
                 <datalist id="history-list"></datalist>
                 <button type="button" id="btn-star" class="btn btn-outline-secondary btn-star flex-shrink-0" title="Star as favorite" aria-label="Star as favorite">☆</button>
             </div>
-            <div class="d-flex align-items-center gap-2 flex-md-nowrap">
-                <div id="timer-display" class="order-2 order-md-1">00:00:00</div>
-                <button type="button" id="btn-action" class="btn btn-success flex-grow-1 flex-md-grow-0 order-1 order-md-2">Start</button>
-            </div>
+            <button type="button" id="btn-action" class="btn btn-success flex-grow-1 flex-md-grow-0">Start</button>
         </div>
         <div id="favorites-row" class="d-flex favorites-row align-items-center" style="display: none;"></div>
     </div>
@@ -236,6 +241,23 @@ const modal = new bootstrap.Modal(document.getElementById('eventModal'));
 const subscribeModal = new bootstrap.Modal(document.getElementById('subscribeModal'));
 
 document.addEventListener('DOMContentLoaded', function() {
+    // Real-time sync: when timer is started/stopped on another device, update UI
+    (function() {
+        var sseToken = <?php echo json_encode($_SESSION['api_token'] ?? ''); ?>;
+        if (!sseToken) return;
+        try {
+            var evtSource = new EventSource("sse.php?token=" + encodeURIComponent(sseToken));
+            evtSource.onmessage = function(event) {
+                var data = null;
+                try { data = JSON.parse(event.data); } catch (e) { return; }
+                if (data && data.error) return;
+                checkTimerStatus();
+                if (typeof calendar !== 'undefined') calendar.refetchEvents();
+            };
+            evtSource.onerror = function() { evtSource.close(); };
+        } catch (e) {}
+    })();
+
     document.getElementById('btn-subscribe-calendar').addEventListener('click', function() {
         subscribeModal.show();
     });
@@ -288,9 +310,16 @@ document.addEventListener('DOMContentLoaded', function() {
     calendar.render();
 
     // 2. INIT FAVORITES (then history), QUICK BUTTONS & TIMER
-    loadFavorites(); // calls loadHistory() when done so datalist gets favorites first
+    loadFavorites();
     loadQuickButtons();
+    loadProjects();
     checkTimerStatus();
+
+    document.getElementById('project-select').addEventListener('change', function() {
+        var opt = this.options[this.selectedIndex];
+        if (opt.value) document.getElementById('task-input').value = opt.text + ': ';
+        this.selectedIndex = 0;
+    });
 
     document.getElementById('task-input').addEventListener('input', updateStarState);
     document.getElementById('task-input').addEventListener('focus', updateStarState);
@@ -310,8 +339,29 @@ document.addEventListener('DOMContentLoaded', function() {
         updateThemeBtn();
     });
 
+    document.addEventListener('keydown', function(e) {
+        if (e.altKey && e.code === 'KeyS') { e.preventDefault(); document.getElementById('btn-action').click(); }
+        if (e.altKey && e.code === 'KeyL') { e.preventDefault(); document.getElementById('task-input').focus(); }
+    });
+
     setInterval(() => calendar.refetchEvents(), 300000);
 });
+
+function loadProjects() {
+    fetch('api.php?action=projects')
+        .then(res => res.json())
+        .then(data => {
+            var sel = document.getElementById('project-select');
+            sel.innerHTML = '<option value="">No project</option>';
+            (data || []).forEach(function(p) {
+                var opt = document.createElement('option');
+                opt.value = p.id;
+                opt.textContent = p.name;
+                opt.style.borderLeft = '3px solid ' + (p.color || '#0ea5e9');
+                sel.appendChild(opt);
+            });
+        });
+}
 
 function pushUndo(entry) {
     undoStack.push(entry);

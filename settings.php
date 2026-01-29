@@ -123,6 +123,24 @@ if (!isset($_SESSION['user_id'])) { header("Location: login.php"); exit; }
         <button type="button" class="btn btn-primary" id="btn-change-password" style="min-height: 44px;">Change password</button>
     </div>
 
+    <div class="settings-card mb-4">
+        <h5 class="mb-2 fw-600">Projects (categories)</h5>
+        <p class="text-muted small mb-3">Type <strong>ProjectName: task</strong> in the timer (e.g. Work: Fix bug) to categorize. Analytics will group by project.</p>
+        <div id="projects-list"></div>
+        <div class="d-flex gap-2 mt-2 flex-wrap">
+            <input type="text" id="new-project-name" class="form-control" placeholder="New project name" style="max-width: 180px; min-height: 44px;">
+            <input type="color" id="new-project-color" value="#0ea5e9" title="Color" style="width: 44px; height: 44px; padding: 2px; cursor: pointer; border-radius: var(--radius-sm);">
+            <button type="button" class="btn btn-outline-primary btn-sm" id="btn-add-project" style="min-height: 44px;">Add project</button>
+        </div>
+        <span id="project-status" class="text-muted small d-block mt-2"></span>
+    </div>
+
+    <div class="settings-card mb-4">
+        <h5 class="mb-2 fw-600">Data export</h5>
+        <p class="text-muted small mb-2">Download all your tasks as JSON for backup.</p>
+        <a href="api.php?action=export" class="btn btn-outline-secondary" style="min-height: 44px;" download>Export to JSON</a>
+    </div>
+
     <div class="settings-card">
         <h5 class="mb-2 fw-600">Quick-action buttons</h5>
         <p class="text-muted small mb-3">These appear next to "What are you doing?" so you can start common tasks with one click. Add up to 8.</p>
@@ -214,6 +232,54 @@ document.getElementById('btn-save').addEventListener('click', () => {
 });
 
 loadQuickButtons();
+
+function loadProjects() {
+    fetch('api.php?action=projects')
+        .then(res => res.json())
+        .then(data => {
+            const list = document.getElementById('projects-list');
+            list.innerHTML = '';
+            (data || []).forEach(p => {
+                const row = document.createElement('div');
+                row.className = 'quick-btn-row align-items-center';
+                row.innerHTML = `
+                    <input type="color" value="${p.color || '#0ea5e9'}" data-id="${p.id}" class="project-color" style="width: 28px; height: 28px; padding: 0; border: none; cursor: pointer; border-radius: 6px;">
+                    <input type="text" class="form-control form-control-sm" value="${escapeHtml(p.name)}" data-id="${p.id}" style="flex: 1; max-width: 200px;">
+                    <button type="button" class="btn btn-outline-danger btn-sm delete-project" data-id="${p.id}" title="Delete">×</button>
+                `;
+                list.appendChild(row);
+            });
+            list.querySelectorAll('.delete-project').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    fetch('api.php?action=delete_project', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: btn.dataset.id }) })
+                        .then(() => loadProjects());
+                });
+            });
+            list.querySelectorAll('.project-color, .form-control[data-id]').forEach(el => {
+                if (el.classList.contains('project-color')) {
+                    el.addEventListener('change', () => {
+                        const name = list.querySelector('input[data-id="' + el.dataset.id + '"]:not(.project-color)').value.trim();
+                        if (name) fetch('api.php?action=save_project', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: parseInt(el.dataset.id), name, color: el.value }) });
+                    });
+                } else {
+                    el.addEventListener('blur', () => {
+                        const colorEl = list.querySelector('.project-color[data-id="' + el.dataset.id + '"]');
+                        if (el.value.trim() && colorEl) fetch('api.php?action=save_project', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: parseInt(el.dataset.id), name: el.value.trim(), color: colorEl.value }) });
+                    });
+                }
+            });
+        });
+}
+document.getElementById('btn-add-project').addEventListener('click', () => {
+    const name = document.getElementById('new-project-name').value.trim();
+    const color = document.getElementById('new-project-color').value;
+    if (!name) { document.getElementById('project-status').textContent = 'Enter a name.'; return; }
+    fetch('api.php?action=save_project', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, color }) })
+        .then(res => res.json())
+        .then(() => { loadProjects(); document.getElementById('new-project-name').value = ''; document.getElementById('project-status').textContent = 'Added.'; setTimeout(() => document.getElementById('project-status').textContent = '', 2000); })
+        .catch(() => document.getElementById('project-status').textContent = 'Error.');
+});
+loadProjects();
 
 (function() {
     var toggle = document.getElementById('dark-mode-toggle');

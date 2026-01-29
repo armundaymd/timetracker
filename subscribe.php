@@ -14,15 +14,17 @@ $stmt = $pdo->prepare("SELECT title, start_time, end_time FROM tasks WHERE user_
 $stmt->execute([$user_id]);
 $events = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Output ICS
+// Output ICS (no caching so calendar apps get fresh data when they refetch)
 header('Content-Type: text/calendar; charset=utf-8');
 header('Content-Disposition: attachment; filename="my_tasks.ics"');
+header('Cache-Control: public, max-age=300'); // Hint: refetch after 5 min (clients may ignore)
 
 echo "BEGIN:VCALENDAR\r\n";
 echo "VERSION:2.0\r\n";
 echo "PRODID:-//My Time Tracker//EN\r\n";
 echo "CALSCALE:GREGORIAN\r\n";
 echo "X-WR-CALNAME:My Personal Tasks\r\n";
+echo "REFRESH-INTERVAL;VALUE=DURATION:PT15M\r\n"; // Suggest 15-min refresh (RFC 7986; not all clients support)
 
 foreach ($events as $event) {
     $start = gmdate('Ymd\THis\Z', strtotime($event['start_time']));

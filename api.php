@@ -52,6 +52,17 @@ if ($user_id === null) {
     exit;
 }
 
+function resolve_project_from_title(PDO $pdo, $title, $user_id) {
+    $parts = explode(':', $title, 2);
+    if (count($parts) !== 2) return null;
+    $name = trim($parts[0]);
+    if ($name === '') return null;
+    $stmt = $pdo->prepare("SELECT id FROM projects WHERE user_id = ? AND name = ?");
+    $stmt->execute([$user_id, $name]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    return $row ? (int) $row['id'] : null;
+}
+
 try {
     // 1. GET STATUS (Current Timer)
     if ($action === 'status') {
@@ -62,13 +73,11 @@ try {
 
     // 2. START TIMER
     elseif ($action === 'start') {
-        // Stop current
         $pdo->prepare("UPDATE tasks SET end_time = NOW(), is_running = 0 WHERE user_id = ? AND is_running = 1")->execute([$user_id]);
-        
-        // Start new
         $title = $_POST['title'] ?? 'Untitled Task';
-        $stmt = $pdo->prepare("INSERT INTO tasks (user_id, title, start_time, is_running) VALUES (?, ?, NOW(), 1)");
-        $stmt->execute([$user_id, $title]);
+        $project_id = resolve_project_from_title($pdo, $title, $user_id);
+        $stmt = $pdo->prepare("INSERT INTO tasks (user_id, title, start_time, is_running, project_id) VALUES (?, ?, NOW(), 1, ?)");
+        $stmt->execute([$user_id, $title, $project_id]);
         echo json_encode(['status' => 'success']);
     }
 
@@ -82,15 +91,19 @@ try {
     elseif ($action === 'events') {
         $start = $_GET['start'];
         $end = $_GET['end'];
-        $stmt = $pdo->prepare("SELECT id, title, start_time as start, end_time as end, is_running FROM tasks WHERE user_id = ? AND start_time BETWEEN ? AND ?");
+        $stmt = $pdo->prepare("SELECT t.id, t.title, t.start_time as start, t.end_time as end, t.is_running, t.project_id, p.color as project_color FROM tasks t LEFT JOIN projects p ON t.project_id = p.id WHERE t.user_id = ? AND t.start_time BETWEEN ? AND ?");
         $stmt->execute([$user_id, $start, $end]);
         $events = $stmt->fetchAll(PDO::FETCH_ASSOC);
         
         // Fix for currently running tasks (FullCalendar needs an end date to render blocks properly, or we leave it null)
         foreach($events as &$event) {
             if($event['is_running']) {
-                $event['className'] = 'bg-danger border-danger'; // Highlight running task red
-                $event['end'] = date('Y-m-d H:i:s'); // Show up to "now"
+                $event['className'] = 'bg-danger border-danger';
+                $event['end'] = date('Y-m-d H:i:s');
+            }
+            if (!empty($event['project_color'])) {
+                $event['borderColor'] = $event['project_color'];
+                $event['backgroundColor'] = $event['project_color'];
             }
         }
         echo json_encode($events);
@@ -98,8 +111,9 @@ try {
 
     // 5. UPDATE EVENT (Drag/Drop/Resize/Edit)
     elseif ($action === 'update') {
-        $stmt = $pdo->prepare("UPDATE tasks SET title = ?, start_time = ?, end_time = ? WHERE id = ? AND user_id = ?");
-        $stmt->execute([$data['title'], $data['start'], $data['end'], $data['id'], $user_id]);
+        $project_id = resolve_project_from_title($pdo, $data['title'] ?? '', $user_id);
+        $stmt = $pdo->prepare("UPDATE tasks SET title = ?, start_time = ?, end_time = ?, project_id = ? WHERE id = ? AND user_id = ?");
+        $stmt->execute([$data['title'], $data['start'], $data['end'], $project_id, $data['id'], $user_id]);
         echo json_encode(['status' => 'updated']);
     }
 
@@ -112,8 +126,9 @@ try {
 
     // 7. CREATE MANUAL ENTRY (returns new id for undo)
     elseif ($action === 'create') {
-        $stmt = $pdo->prepare("INSERT INTO tasks (user_id, title, start_time, end_time, is_running) VALUES (?, ?, ?, ?, 0)");
-        $stmt->execute([$user_id, $data['title'], $data['start'], $data['end']]);
+        $project_id = resolve_project_from_title($pdo, $data['title'] ?? '', $user_id);
+        $stmt = $pdo->prepare("INSERT INTO tasks (user_id, title, start_time, end_time, is_running, project_id) VALUES (?, ?, ?, ?, 0, ?)");
+        $stmt->execute([$user_id, $data['title'], $data['start'], $data['end'], $project_id]);
         echo json_encode(['status' => 'created', 'id' => (int) $pdo->lastInsertId()]);
     }
 
@@ -225,12 +240,85 @@ try {
                 $total_seconds += (time() - $run_start);
             }
         }
+        // By project (for pie chart / breakdown)
+        $stmtProj = $pdo->prepare("
+            SELECT p.name, p.color, SUM(TIMESTAMPDIFF(SECOND, t.start_time, COALESCE(t.end_time, NOW()))) AS seconds
+            FROM tasks t
+            LEFT JOIN projects p ON t.project_id = p.id
+            WHERE t.user_id = ? AND t.is_running = 0 AND t.start_time >= ? AND t.start_time < DATE_ADD(?, INTERVAL 1 DAY) AND t.end_time IS NOT NULL
+            GROUP BY p.id, p.name, p.color
+            HAVING p.id IS NOT NULL
+            ORDER BY seconds DESC
+        ");
+        $stmtProj->execute([$user_id, $start, $end]);
+        $by_project = $stmtProj->fetchAll(PDO::FETCH_ASSOC);
+
+        // Heatmap: last 365 days, seconds per day (date => seconds)
+        $stmtHeat = $pdo->prepare("
+            SELECT DATE(start_time) AS d, SUM(TIMESTAMPDIFF(SECOND, start_time, COALESCE(end_time, NOW()))) AS seconds
+            FROM tasks
+            WHERE user_id = ? AND start_time >= DATE_SUB(CURDATE(), INTERVAL 365 DAY)
+            GROUP BY DATE(start_time)
+        ");
+        $stmtHeat->execute([$user_id]);
+        $heatmap_days = [];
+        while ($row = $stmtHeat->fetch(PDO::FETCH_ASSOC)) {
+            $heatmap_days[$row['d']] = (int) $row['seconds'];
+        }
+
         echo json_encode([
             'start' => $start,
             'end' => $end,
             'total_seconds' => (int) $total_seconds,
-            'by_activity' => $by_activity
+            'by_activity' => $by_activity,
+            'by_project' => $by_project,
+            'heatmap_days' => $heatmap_days
         ]);
+    }
+
+    // 15. GET PROJECTS (for dropdown / categorization)
+    elseif ($action === 'projects') {
+        $stmt = $pdo->prepare("SELECT id, name, color FROM projects WHERE user_id = ? ORDER BY name");
+        $stmt->execute([$user_id]);
+        echo json_encode($stmt->fetchAll(PDO::FETCH_ASSOC));
+    }
+
+    // 16. SAVE PROJECT (create or update)
+    elseif ($action === 'save_project') {
+        $id = isset($data['id']) ? (int) $data['id'] : null;
+        $name = trim($data['name'] ?? '');
+        $color = trim($data['color'] ?? '#0ea5e9');
+        if ($name === '') {
+            echo json_encode(['error' => 'Project name required']);
+            exit;
+        }
+        if ($id) {
+            $stmt = $pdo->prepare("UPDATE projects SET name = ?, color = ? WHERE id = ? AND user_id = ?");
+            $stmt->execute([$name, $color, $id, $user_id]);
+        } else {
+            $stmt = $pdo->prepare("INSERT INTO projects (user_id, name, color) VALUES (?, ?, ?)");
+            $stmt->execute([$user_id, $name, $color]);
+        }
+        echo json_encode(['status' => 'saved']);
+    }
+
+    // 17. DELETE PROJECT
+    elseif ($action === 'delete_project') {
+        $id = (int) ($data['id'] ?? 0);
+        $pdo->prepare("DELETE FROM projects WHERE id = ? AND user_id = ?")->execute([$id, $user_id]);
+        $pdo->prepare("UPDATE tasks SET project_id = NULL WHERE project_id = ?")->execute([$id]);
+        echo json_encode(['status' => 'deleted']);
+    }
+
+    // 18. EXPORT (backup all tasks as JSON)
+    elseif ($action === 'export') {
+        $stmt = $pdo->prepare("SELECT id, title, start_time, end_time, is_running, project_id FROM tasks WHERE user_id = ? ORDER BY start_time DESC");
+        $stmt->execute([$user_id]);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        header('Content-Type: application/json');
+        header('Content-Disposition: attachment; filename="time_tracker_backup_' . date('Y-m-d') . '.json"');
+        echo json_encode($rows, JSON_PRETTY_PRINT);
+        exit;
     }
 
 } catch (Exception $e) {
