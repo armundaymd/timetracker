@@ -151,8 +151,8 @@ $api_url = "http://" . $_SERVER['HTTP_HOST'] . dirname($_SERVER['PHP_SELF']) . "
         <div class="timer-display-row mb-3">
             <div id="timer-display">00:00:00</div>
         </div>
-        <div class="d-flex flex-column flex-md-row align-items-stretch gap-2 gap-md-3">
-            <div class="flex-grow-1 w-100 d-flex gap-2">
+        <div class="d-flex flex-column gap-2 gap-md-3">
+            <div class="d-flex gap-2">
                 <select id="project-select" class="form-select flex-shrink-0" style="max-width: 140px; min-height: 48px;" title="Category (type Name: task to use)">
                     <option value="">No project</option>
                 </select>
@@ -160,7 +160,9 @@ $api_url = "http://" . $_SERVER['HTTP_HOST'] . dirname($_SERVER['PHP_SELF']) . "
                 <datalist id="history-list"></datalist>
                 <button type="button" id="btn-star" class="btn btn-outline-secondary btn-star flex-shrink-0" title="Star as favorite" aria-label="Star as favorite">☆</button>
             </div>
-            <button type="button" id="btn-action" class="btn btn-success flex-grow-1 flex-md-grow-0">Start</button>
+            <div class="d-flex justify-content-center justify-content-md-start">
+                <button type="button" id="btn-action" class="btn btn-success btn-lg px-5">Start</button>
+            </div>
         </div>
         <div id="favorites-row" class="d-flex favorites-row align-items-center" style="display: none;"></div>
     </div>

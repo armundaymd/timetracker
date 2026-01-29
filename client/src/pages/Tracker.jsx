@@ -1,0 +1,379 @@
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { Link } from 'react-router-dom';
+import FullCalendar from '@fullcalendar/react';
+import timeGridPlugin from '@fullcalendar/timegrid';
+import dayGridPlugin from '@fullcalendar/daygrid';
+import interactionPlugin from '@fullcalendar/interaction';
+import {
+  getStatus,
+  startTimer,
+  stopTimer,
+  getEvents,
+  createEvent,
+  updateEvent,
+  deleteEvent,
+  getFavorites,
+  toggleFavorite,
+  getQuickButtons,
+  getProjects,
+  getHistory,
+  getSSEUrl,
+} from '../api';
+import { useAuth } from '../context/AuthContext';
+
+function formatTime(date) {
+  const d = new Date(date);
+  const offset = d.getTimezoneOffset() * 60000;
+  return new Date(d - offset).toISOString().slice(0, 16);
+}
+
+export default function Tracker() {
+  const { token, logout } = useAuth();
+  const [status, setStatus] = useState(null);
+  const [taskTitle, setTaskTitle] = useState('');
+  const [timerStr, setTimerStr] = useState('00:00:00');
+  const [favorites, setFavorites] = useState([]);
+  const [quickButtons, setQuickButtons] = useState([]);
+  const [projects, setProjects] = useState([]);
+  const [history, setHistory] = useState([]);
+  const [modal, setModal] = useState(null);
+  const [undoStack, setUndoStack] = useState([]);
+  const timerRef = useRef(null);
+  const calendarRef = useRef(null);
+
+  const fetchStatus = useCallback(async () => {
+    try {
+      const data = await getStatus();
+      setStatus(data && data.is_running === 1 ? data : null);
+      if (data && data.is_running === 1) {
+        setTaskTitle(data.title || '');
+      }
+    } catch {
+      setStatus(null);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchStatus();
+  }, [fetchStatus]);
+
+  useEffect(() => {
+    if (!status) {
+      setTimerStr('00:00:00');
+      if (timerRef.current) clearInterval(timerRef.current);
+      return;
+    }
+    const start = new Date(status.start_time);
+    const tick = () => {
+      const diff = Math.floor((Date.now() - start) / 1000);
+      const h = String(Math.floor(diff / 3600)).padStart(2, '0');
+      const m = String(Math.floor((diff % 3600) / 60)).padStart(2, '0');
+      const s = String(diff % 60).padStart(2, '0');
+      setTimerStr(`${h}:${m}:${s}`);
+    };
+    tick();
+    timerRef.current = setInterval(tick, 1000);
+    return () => clearInterval(timerRef.current);
+  }, [status]);
+
+  useEffect(() => {
+    if (!token) return;
+    getFavorites().then(setFavorites).catch(() => {});
+    getQuickButtons().then(setQuickButtons).catch(() => {});
+    getProjects().then(setProjects).catch(() => {});
+  }, [token]);
+
+  useEffect(() => {
+    getHistory().then((data) => {
+      const list = [...(favorites || []), ...(data || []).filter((t) => !favorites.includes(t))];
+      setHistory(list.slice(0, 20));
+    }).catch(() => {});
+  }, [token, favorites]);
+
+  useEffect(() => {
+    if (!token) return;
+    try {
+      const es = new EventSource(getSSEUrl());
+      es.onmessage = () => fetchStatus();
+      es.onerror = () => es.close();
+      return () => es.close();
+    } catch {}
+  }, [token, fetchStatus]);
+
+  const handleStartStop = async () => {
+    try {
+      if (status) await stopTimer();
+      else await startTimer(taskTitle || 'Untitled Task');
+      await fetchStatus();
+      if (calendarRef.current) calendarRef.current.getApi().refetchEvents();
+      if (!status) getHistory().then((d) => setHistory(d || []));
+    } catch {}
+  };
+
+  const handleStar = async () => {
+    const title = taskTitle.trim();
+    if (!title) return;
+    try {
+      await toggleFavorite(title);
+      const list = await getFavorites();
+      setFavorites(list || []);
+    } catch {}
+  };
+
+  const eventsUrl = (info) =>
+    getEvents(info.startStr, info.endStr).catch(() => []);
+
+  const handleEventClick = (info) => {
+    setModal({
+      id: info.event.id,
+      title: info.event.title,
+      start: formatTime(info.event.start),
+      end: info.event.end ? formatTime(info.event.end) : '',
+    });
+  };
+
+  const handleSelect = (info) => {
+    setModal({ id: null, title: '', start: formatTime(info.start), end: formatTime(info.end) });
+  };
+
+  const handleSaveEvent = async () => {
+    if (!modal) return;
+    try {
+      if (modal.id) await updateEvent({ id: modal.id, title: modal.title, start: modal.start, end: modal.end });
+      else await createEvent({ title: modal.title, start: modal.start, end: modal.end });
+      setModal(null);
+      if (calendarRef.current) calendarRef.current.getApi().refetchEvents();
+    } catch {}
+  };
+
+  const handleDeleteEvent = async () => {
+    if (!modal?.id || !confirm('Delete?')) return;
+    try {
+      await deleteEvent(modal.id);
+      setModal(null);
+      if (calendarRef.current) calendarRef.current.getApi().refetchEvents();
+    } catch {}
+  };
+
+  const [dark, setDark] = useState(() => localStorage.getItem('darkMode') === 'true');
+  useEffect(() => {
+    if (dark) document.documentElement.classList.add('dark');
+    else document.documentElement.classList.remove('dark');
+    localStorage.setItem('darkMode', dark ? 'true' : 'false');
+  }, [dark]);
+
+  return (
+    <div className="min-h-screen bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-white font-sans pb-8">
+      {/* Timer bar */}
+      <div className="sticky top-0 z-50 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 shadow-sm">
+        <div className="max-w-4xl mx-auto px-4 py-4">
+          <div className="flex flex-wrap items-center gap-2 mb-3">
+            <div className="flex flex-wrap gap-2">
+              {quickButtons.map((title) => (
+                <button
+                  key={title}
+                  type="button"
+                  onClick={() => setTaskTitle(title)}
+                  className="px-3 py-2 text-sm rounded-lg border border-sky-500 text-sky-500 hover:bg-sky-500 hover:text-white"
+                >
+                  {title}
+                </button>
+              ))}
+            </div>
+            <div className="ml-auto flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setDark(!dark)}
+                className="p-2 rounded-lg border border-slate-300 dark:border-slate-600"
+                aria-label="Toggle dark mode"
+              >
+                {dark ? '☀️' : '🌙'}
+              </button>
+              <Link to="/analytics" className="px-3 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700">
+                Analytics
+              </Link>
+              <Link to="/settings" className="px-3 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700">
+                Settings
+              </Link>
+            </div>
+          </div>
+
+          <div className="flex justify-center mb-4">
+            <div className="text-4xl md:text-5xl font-bold tabular-nums tracking-wide">{timerStr}</div>
+          </div>
+
+          <div className="space-y-3">
+            <div className="flex gap-2">
+              <select
+                className="w-36 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-3 text-sm"
+                onChange={(e) => {
+                  const opt = e.target.options[e.target.selectedIndex];
+                  if (opt.value) setTaskTitle(opt.text + ': ');
+                  e.target.selectedIndex = 0;
+                }}
+              >
+                <option value="">No project</option>
+                {projects.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+              <input
+                type="text"
+                value={taskTitle}
+                onChange={(e) => setTaskTitle(e.target.value)}
+                placeholder="What are you doing? (or Project: task)"
+                list="history-list"
+                className="flex-1 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 px-4 py-3 focus:ring-2 focus:ring-sky-500 focus:border-transparent"
+              />
+              <datalist id="history-list">
+                {history.map((item) => <option key={item} value={item} />)}
+              </datalist>
+              <button
+                type="button"
+                onClick={handleStar}
+                title={favorites.includes(taskTitle.trim()) ? 'Unstar' : 'Star'}
+                className="px-3 py-3 rounded-xl border border-slate-300 dark:border-slate-600 text-lg"
+              >
+                {favorites.includes(taskTitle.trim()) ? '★' : '☆'}
+              </button>
+            </div>
+            <div className="flex justify-center md:justify-start">
+              <button
+                type="button"
+                onClick={handleStartStop}
+                className={`px-8 py-3 rounded-xl font-semibold text-lg ${status ? 'bg-red-500 hover:bg-red-600' : 'bg-emerald-500 hover:bg-emerald-600'} text-white`}
+              >
+                {status ? 'Stop' : 'Start'}
+              </button>
+            </div>
+          </div>
+
+          {favorites.length > 0 && (
+            <div className="flex flex-wrap gap-2 mt-3">
+              {favorites.map((title) => (
+                <button
+                  key={title}
+                  type="button"
+                  onClick={() => setTaskTitle(title)}
+                  className="px-3 py-1.5 text-sm rounded-full border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600"
+                >
+                  {title}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Calendar */}
+      <div className="max-w-4xl mx-auto px-4 mt-6">
+        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-lg p-4">
+          <div className="flex justify-between items-center mb-3">
+            <h2 className="text-lg font-semibold">My Schedule</h2>
+            <button
+              type="button"
+              onClick={() => logout()}
+              className="text-sm text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+            >
+              Log out
+            </button>
+          </div>
+          <FullCalendar
+            ref={calendarRef}
+            plugins={[timeGridPlugin, dayGridPlugin, interactionPlugin]}
+            initialView="timeGridWeek"
+            headerToolbar={{ left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek,timeGridDay' }}
+            events={eventsUrl}
+            editable
+            selectable
+            selectMirror
+            dayMaxEvents
+            slotLabelFormat={{ hour: '2-digit', minute: '2-digit', hour12: false }}
+            eventTimeFormat={{ hour: '2-digit', minute: '2-digit', hour12: false }}
+            eventResizableFromStart
+            eventClick={handleEventClick}
+            select={handleSelect}
+            eventDrop={async (info) => {
+              try {
+                await updateEvent({
+                  id: info.event.id,
+                  title: info.event.title,
+                  start: formatTime(info.event.start),
+                  end: info.event.end ? formatTime(info.event.end) : null,
+                });
+              } catch {}
+            }}
+            eventResize={async (info) => {
+              try {
+                await updateEvent({
+                  id: info.event.id,
+                  title: info.event.title,
+                  start: formatTime(info.event.start),
+                  end: info.event.end ? formatTime(info.event.end) : null,
+                });
+              } catch {}
+            }}
+            height="auto"
+          />
+        </div>
+      </div>
+
+      {/* Edit modal */}
+      {modal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => setModal(null)}>
+          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl max-w-md w-full p-6 border border-slate-200 dark:border-slate-700" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold mb-4">{modal.id ? 'Edit task' : 'New task'}</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-1">Task</label>
+                <input
+                  type="text"
+                  value={modal.title}
+                  onChange={(e) => setModal((m) => ({ ...m, title: e.target.value }))}
+                  className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-1">Start</label>
+                  <input
+                    type="datetime-local"
+                    value={modal.start}
+                    onChange={(e) => setModal((m) => ({ ...m, start: e.target.value }))}
+                    className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-1">End</label>
+                  <input
+                    type="datetime-local"
+                    value={modal.end}
+                    onChange={(e) => setModal((m) => ({ ...m, end: e.target.value }))}
+                    className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700"
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="flex justify-between mt-6">
+              <div>
+                {modal.id && (
+                  <button type="button" onClick={handleDeleteEvent} className="px-4 py-2 rounded-lg bg-red-500 hover:bg-red-600 text-white text-sm">
+                    Delete
+                  </button>
+                )}
+              </div>
+              <div className="flex gap-2">
+                <button type="button" onClick={() => setModal(null)} className="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600">
+                  Cancel
+                </button>
+                <button type="button" onClick={handleSaveEvent} className="px-4 py-2 rounded-lg bg-sky-500 hover:bg-sky-600 text-white">
+                  Save
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

@@ -1,2 +1,13 @@
+# Dependencies (do not push)
+client/node_modules/
+
+# Optional: uncomment to ignore build output (build on server/CI instead)
+# client/dist/
+
+# Env and IDE
+.env
+.env.local
+.env.*.local
+.DS_Store
 *.swift
 apps/README.md
