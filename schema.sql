@@ -1,0 +1,23 @@
+CREATE TABLE `users` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `username` varchar(50) NOT NULL UNIQUE,
+  `password` varchar(255) NOT NULL,
+  `api_token` varchar(64) DEFAULT NULL, -- For mobile app / calendar subscription
+  PRIMARY KEY (`id`)
+);
+
+CREATE TABLE `tasks` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `user_id` int(11) NOT NULL,
+  `title` varchar(255) NOT NULL,
+  `start_time` datetime NOT NULL,
+  `end_time` datetime DEFAULT NULL,
+  `is_running` tinyint(1) DEFAULT 0,
+  PRIMARY KEY (`id`),
+  KEY `user_id` (`user_id`)
+);
+
+-- Insert a default user (Username: admin, Password: password)
+-- You should change the password immediately after logging in or manually via MD5/Hash
+INSERT INTO `users` (`username`, `password`, `api_token`) VALUES
+('admin', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'bk32-secret-token-8842');
