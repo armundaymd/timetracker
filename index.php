@@ -8,7 +8,7 @@ $api_url = "http://" . $_SERVER['HTTP_HOST'] . dirname($_SERVER['PHP_SELF']) . "
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <meta name="theme-color" content="#0f172a">
+    <meta name="theme-color" content="#0f172a" id="meta-theme-color">
     <title>My Personal Tracker</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -109,15 +109,38 @@ $api_url = "http://" . $_SERVER['HTTP_HOST'] . dirname($_SERVER['PHP_SELF']) . "
         a[href="settings.php"] { min-height: 44px; align-self: center; border-radius: var(--radius-sm); }
         .fw-500 { font-weight: 500; }
         .fw-600 { font-weight: 600; }
+        html.dark {
+            --bg-page: #0f172a;
+            --bg-card: #1e293b;
+            --border: #334155;
+            --text: #f1f5f9;
+            --text-muted: #94a3b8;
+            --accent: #38bdf8;
+            --accent-hover: #7dd3fc;
+            --success: #34d399;
+            --success-hover: #6ee7b7;
+            --danger: #f87171;
+            --shadow: 0 1px 3px rgba(0,0,0,0.3);
+            --shadow-lg: 0 4px 20px rgba(0,0,0,0.4);
+        }
+        html.dark .fc-theme-standard .fc-scrollgrid { border-color: var(--border); }
+        html.dark .fc .fc-button-primary { background: var(--accent); border-color: var(--accent); }
+        html.dark .fc .fc-button-primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+        html.dark .fc .fc-button:not(.fc-button-primary) { color: var(--text-muted); border-color: var(--border); }
+        html.dark .fc .fc-button:not(.fc-button-primary):hover { background: var(--border); }
     </style>
 </head>
 <body>
+<script>
+(function(){var d=localStorage.getItem('darkMode');if(d==='true')document.documentElement.classList.add('dark');var m=document.getElementById('meta-theme-color');if(m)m.content=document.documentElement.classList.contains('dark')?'#0f172a':'#f1f5f9';})();
+</script>
 
 <div class="timer-bar">
     <div class="container">
         <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
             <div id="quick-buttons-wrap" class="d-flex flex-wrap gap-2 align-items-center"></div>
             <div class="ms-auto d-flex gap-2 align-items-center">
+                <button type="button" class="btn btn-outline-secondary btn-sm" id="btn-theme" title="Toggle dark mode" aria-label="Toggle dark mode" style="min-height: 44px; min-width: 44px; padding: 0;">🌙</button>
                 <button type="button" class="btn btn-outline-secondary btn-sm" id="btn-undo" title="Undo last change" style="min-height: 44px; display: none;">Undo</button>
                 <a href="analytics.php" class="btn btn-outline-secondary btn-sm" style="min-height: 44px;">Analytics</a>
                 <a href="settings.php" class="btn btn-outline-secondary btn-sm" style="min-height: 44px;">Settings</a>
@@ -273,6 +296,19 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('task-input').addEventListener('focus', updateStarState);
     document.getElementById('btn-star').addEventListener('click', toggleFavorite);
     document.getElementById('btn-undo').addEventListener('click', performUndo);
+
+    var themeBtn = document.getElementById('btn-theme');
+    var metaTheme = document.getElementById('meta-theme-color');
+    function updateThemeBtn() {
+        themeBtn.textContent = document.documentElement.classList.contains('dark') ? '☀️' : '🌙';
+    }
+    updateThemeBtn();
+    themeBtn.addEventListener('click', function() {
+        var isDark = document.documentElement.classList.toggle('dark');
+        localStorage.setItem('darkMode', isDark ? 'true' : 'false');
+        if (metaTheme) metaTheme.content = isDark ? '#0f172a' : '#f1f5f9';
+        updateThemeBtn();
+    });
 
     setInterval(() => calendar.refetchEvents(), 300000);
 });

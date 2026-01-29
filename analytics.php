@@ -7,7 +7,7 @@ if (!isset($_SESSION['user_id'])) { header("Location: login.php"); exit; }
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <meta name="theme-color" content="#0f172a">
+    <meta name="theme-color" content="#0f172a" id="meta-theme-color">
     <title>Analytics · Time Tracker</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -50,9 +50,25 @@ if (!isset($_SESSION['user_id'])) { header("Location: login.php"); exit; }
         .fw-600 { font-weight: 600; }
         .activity-row { align-items: center; padding: 0.5rem 0; border-bottom: 1px solid var(--border); }
         .activity-row:last-child { border-bottom: none; }
+        html.dark {
+            --bg-page: #0f172a;
+            --bg-card: #1e293b;
+            --border: #334155;
+            --text: #f1f5f9;
+            --text-muted: #94a3b8;
+            --accent: #38bdf8;
+            --accent-hover: #0284c7;
+            --shadow: 0 1px 3px rgba(0,0,0,0.3);
+            --shadow-lg: 0 4px 20px rgba(0,0,0,0.4);
+        }
+        html.dark .form-control { background: #334155; border-color: var(--border); color: var(--text); }
+        html.dark .btn-outline-secondary { border-color: var(--border); color: var(--text-muted); }
     </style>
 </head>
 <body>
+<script>
+(function(){var d=localStorage.getItem('darkMode');if(d==='true')document.documentElement.classList.add('dark');var m=document.getElementById('meta-theme-color');if(m)m.content=document.documentElement.classList.contains('dark')?'#0f172a':'#f1f5f9';})();
+</script>
 <div class="container py-4 px-3">
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
         <h4 class="mb-0 fw-600">Analytics</h4>

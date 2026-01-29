@@ -7,7 +7,7 @@ if (!isset($_SESSION['user_id'])) { header("Location: login.php"); exit; }
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <meta name="theme-color" content="#0f172a">
+    <meta name="theme-color" content="#0f172a" id="meta-theme-color">
     <title>Settings · Time Tracker</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -27,6 +27,23 @@ if (!isset($_SESSION['user_id'])) { header("Location: login.php"); exit; }
             --shadow: 0 1px 3px rgba(0,0,0,0.06);
             --shadow-lg: 0 4px 20px rgba(0,0,0,0.08);
         }
+        html.dark {
+            --bg-page: #0f172a;
+            --bg-card: #1e293b;
+            --border: #334155;
+            --text: #f1f5f9;
+            --text-muted: #94a3b8;
+            --accent: #38bdf8;
+            --accent-hover: #0ea5e9;
+            --shadow: 0 1px 3px rgba(0,0,0,0.3);
+            --shadow-lg: 0 4px 20px rgba(0,0,0,0.4);
+        }
+        html.dark .text-muted { color: var(--text-muted) !important; }
+        html.dark .form-control, html.dark .form-select { background: #334155; border-color: var(--border); color: var(--text); }
+        html.dark .btn-outline-primary { border-color: var(--accent); color: var(--accent); }
+        html.dark .btn-outline-primary:hover { background: var(--accent); color: #0f172a; }
+        html.dark .btn-outline-secondary { border-color: var(--border); color: var(--text-muted); }
+        html.dark .btn-outline-danger { border-color: #f87171; color: #f87171; }
         * { -webkit-tap-highlight-color: transparent; }
         body {
             font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
@@ -67,10 +84,43 @@ if (!isset($_SESSION['user_id'])) { header("Location: login.php"); exit; }
     </style>
 </head>
 <body>
+<script>
+(function(){var d=localStorage.getItem('darkMode');if(d==='true')document.documentElement.classList.add('dark');var m=document.getElementById('meta-theme-color');if(m)m.content=document.documentElement.classList.contains('dark')?'#0f172a':'#0f172a';})();
+</script>
 <div class="container py-4 px-3">
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
         <h4 class="mb-0 fw-600">Settings</h4>
         <a href="index.php" class="btn btn-outline-secondary btn-sm" style="min-height: 44px;">← Back to Tracker</a>
+    </div>
+
+    <div class="settings-card mb-4">
+        <h5 class="mb-2 fw-600">Appearance</h5>
+        <div class="d-flex align-items-center justify-content-between">
+            <span>Dark mode</span>
+            <div class="form-check form-switch mb-0">
+                <input class="form-check-input" type="checkbox" id="dark-mode-toggle" style="cursor: pointer;">
+                <label class="form-check-label" for="dark-mode-toggle"></label>
+            </div>
+        </div>
+    </div>
+
+    <div class="settings-card mb-4">
+        <h5 class="mb-2 fw-600">Change password</h5>
+        <p class="text-muted small mb-3">Enter your current password and choose a new one (at least 6 characters).</p>
+        <div class="mb-3">
+            <label class="form-label">Current password</label>
+            <input type="password" id="current-password" class="form-control" style="font-size: 1rem; min-height: 44px;" autocomplete="current-password">
+        </div>
+        <div class="mb-3">
+            <label class="form-label">New password</label>
+            <input type="password" id="new-password" class="form-control" style="font-size: 1rem; min-height: 44px;" autocomplete="new-password">
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Confirm new password</label>
+            <input type="password" id="confirm-password" class="form-control" style="font-size: 1rem; min-height: 44px;" autocomplete="new-password">
+        </div>
+        <span id="password-status" class="text-muted small d-block mb-2"></span>
+        <button type="button" class="btn btn-primary" id="btn-change-password" style="min-height: 44px;">Change password</button>
     </div>
 
     <div class="settings-card">
@@ -164,6 +214,50 @@ document.getElementById('btn-save').addEventListener('click', () => {
 });
 
 loadQuickButtons();
+
+(function() {
+    var toggle = document.getElementById('dark-mode-toggle');
+    var meta = document.getElementById('meta-theme-color');
+    if (localStorage.getItem('darkMode') === 'true') toggle.checked = true;
+    function applyDark(enabled) {
+        if (enabled) { document.documentElement.classList.add('dark'); localStorage.setItem('darkMode', 'true'); }
+        else { document.documentElement.classList.remove('dark'); localStorage.setItem('darkMode', 'false'); }
+        if (meta) meta.content = enabled ? '#0f172a' : '#f1f5f9';
+    }
+    toggle.addEventListener('change', function() { applyDark(toggle.checked); });
+})();
+
+document.getElementById('btn-change-password').addEventListener('click', function() {
+    var current = document.getElementById('current-password').value;
+    var newP = document.getElementById('new-password').value;
+    var confirmP = document.getElementById('confirm-password').value;
+    var status = document.getElementById('password-status');
+    status.textContent = '';
+    if (!current || !newP) { status.textContent = 'Fill in all fields.'; status.classList.add('text-danger'); return; }
+    if (newP !== confirmP) { status.textContent = 'New passwords do not match.'; status.classList.add('text-danger'); return; }
+    if (newP.length < 6) { status.textContent = 'New password must be at least 6 characters.'; status.classList.add('text-danger'); return; }
+    fetch('api.php?action=change_password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ current_password: current, new_password: newP })
+    })
+    .then(function(r) { return r.json().then(function(data) { return { ok: r.ok, data: data }; }); })
+    .then(function(result) {
+        if (result.ok) {
+            status.textContent = 'Password updated.';
+            status.classList.remove('text-danger');
+            status.classList.add('text-success');
+            document.getElementById('current-password').value = '';
+            document.getElementById('new-password').value = '';
+            document.getElementById('confirm-password').value = '';
+            setTimeout(function() { status.textContent = ''; }, 3000);
+        } else {
+            status.textContent = result.data.error || 'Failed to change password.';
+            status.classList.add('text-danger');
+        }
+    })
+    .catch(function() { status.textContent = 'Network error.'; status.classList.add('text-danger'); });
+});
 </script>
 </body>
 </html>

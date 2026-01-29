@@ -156,7 +156,34 @@ try {
         echo json_encode($stmt->fetchAll(PDO::FETCH_COLUMN));
     }
 
-    // 12. SAVE QUICK BUTTONS (from Settings page)
+    // 12. CHANGE PASSWORD (from Settings page)
+    elseif ($action === 'change_password') {
+        $current = $data['current_password'] ?? '';
+        $new = $data['new_password'] ?? '';
+        if ($current === '' || $new === '') {
+            http_response_code(400);
+            echo json_encode(['error' => 'Current and new password required']);
+            exit;
+        }
+        if (strlen($new) < 6) {
+            http_response_code(400);
+            echo json_encode(['error' => 'New password must be at least 6 characters']);
+            exit;
+        }
+        $stmt = $pdo->prepare("SELECT password FROM users WHERE id = ?");
+        $stmt->execute([$user_id]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$row || !password_verify($current, $row['password'])) {
+            http_response_code(401);
+            echo json_encode(['error' => 'Current password is incorrect']);
+            exit;
+        }
+        $hash = password_hash($new, PASSWORD_DEFAULT);
+        $pdo->prepare("UPDATE users SET password = ? WHERE id = ?")->execute([$hash, $user_id]);
+        echo json_encode(['status' => 'updated']);
+    }
+
+    // 13. SAVE QUICK BUTTONS (from Settings page)
     elseif ($action === 'save_quick_buttons') {
         $titles = $data['titles'] ?? [];
         if (!is_array($titles)) $titles = [];
@@ -169,7 +196,7 @@ try {
         echo json_encode(['status' => 'saved']);
     }
 
-    // 13. ANALYTICS (time by activity for date range)
+    // 14. ANALYTICS (time by activity for date range)
     elseif ($action === 'analytics') {
         $start = $_GET['start'] ?? date('Y-m-d', strtotime('-30 days'));
         $end = $_GET['end'] ?? date('Y-m-d');
