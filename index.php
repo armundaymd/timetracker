@@ -50,7 +50,9 @@ $api_url = "http://" . $_SERVER['HTTP_HOST'] . dirname($_SERVER['PHP_SELF']) . "
             z-index: 1000;
             border-bottom: 1px solid var(--border);
         }
-        .timer-bar .container { max-width: 900px; }
+        .timer-bar .container { max-width: 900px; display: flex; flex-direction: column; align-items: center; }
+        .timer-bar .container > .d-flex:first-child { width: 100%; justify-content: center; }
+        .timer-bar .container > .d-flex:first-child .ms-auto { margin-left: auto; margin-right: auto; }
         .timer-display-row { display: flex; justify-content: center; align-items: center; }
         #quick-buttons-wrap .btn { font-size: 0.875rem; padding: 0.5rem 0.75rem; min-height: 44px; border-radius: var(--radius-sm); }
         #task-input {
@@ -133,7 +135,7 @@ $api_url = "http://" . $_SERVER['HTTP_HOST'] . dirname($_SERVER['PHP_SELF']) . "
         html.dark .fc .fc-button:not(.fc-button-primary):hover { background: var(--border); }
         .fc .fc-col-header-cell-cushion { color: inherit; text-decoration: none; cursor: pointer; }
         html.dark .fc .fc-col-header-cell-cushion { color: inherit; }
-        .task-input-wrap { position: relative; flex: 1; min-width: 0; }
+        .task-input-wrap { position: relative; width: 100%; max-width: 280px; }
         #recommendations-dropdown {
             display: none; position: absolute; left: 0; right: 0; top: 100%; margin-top: 4px;
             background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-sm);
@@ -163,7 +165,7 @@ $api_url = "http://" . $_SERVER['HTTP_HOST'] . dirname($_SERVER['PHP_SELF']) . "
         <div class="timer-display-row mb-2">
             <div id="timer-display">00:00:00</div>
         </div>
-        <div class="d-flex justify-content-center justify-content-md-start mb-3">
+        <div class="d-flex justify-content-center mb-3">
             <button type="button" id="btn-action" class="btn btn-success btn-lg px-5">Start</button>
         </div>
         <div class="task-input-wrap mb-2">
@@ -174,8 +176,8 @@ $api_url = "http://" . $_SERVER['HTTP_HOST'] . dirname($_SERVER['PHP_SELF']) . "
             </div>
             <div id="recommendations-dropdown" class="recommendations-dropdown" role="listbox"></div>
         </div>
-        <div id="quick-buttons-wrap" class="d-flex flex-wrap gap-2 align-items-center mb-2"></div>
-        <div class="d-flex">
+        <div id="quick-buttons-wrap" class="d-flex flex-wrap gap-2 align-items-center justify-content-center mb-2"></div>
+        <div class="d-flex justify-content-center">
             <select id="project-select" class="form-select" style="max-width: 200px; min-height: 44px;" title="Category (type Name: task to use)">
                 <option value="">No project</option>
             </select>
