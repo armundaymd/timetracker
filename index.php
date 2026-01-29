@@ -273,7 +273,11 @@ document.addEventListener('DOMContentLoaded', function() {
     calendar = new FullCalendar.Calendar(calendarEl, {
         initialView: 'timeGridWeek',
         headerToolbar: { left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek,timeGridDay' },
-        events: 'api.php?action=events',
+        events: function(info) {
+            return fetch('api.php?action=events&start=' + encodeURIComponent(info.startStr) + '&end=' + encodeURIComponent(info.endStr))
+                .then(function(res) { return res.ok ? res.json() : []; })
+                .catch(function() { return []; });
+        },
         editable: true,
         selectable: true,
         nowIndicator: true,
@@ -360,7 +364,8 @@ function loadProjects() {
                 opt.style.borderLeft = '3px solid ' + (p.color || '#0ea5e9');
                 sel.appendChild(opt);
             });
-        });
+        })
+        .catch(function() {});
 }
 
 function pushUndo(entry) {
@@ -379,23 +384,14 @@ function performUndo() {
     if (!entry) return;
     updateUndoButton();
     if (entry.type === 'delete') {
-        fetch('api.php?action=create', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ title: entry.data.title, start: entry.data.start, end: entry.data.end })
-        }).then(() => calendar.refetchEvents());
+        fetch('api.php?action=create', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: entry.data.title, start: entry.data.start, end: entry.data.end }) })
+            .then(() => calendar.refetchEvents()).catch(() => {});
     } else if (entry.type === 'update') {
-        fetch('api.php?action=update', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id: entry.data.id, title: entry.data.title, start: entry.data.start, end: entry.data.end })
-        }).then(() => calendar.refetchEvents());
+        fetch('api.php?action=update', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: entry.data.id, title: entry.data.title, start: entry.data.start, end: entry.data.end }) })
+            .then(() => calendar.refetchEvents()).catch(() => {});
     } else if (entry.type === 'create') {
-        fetch('api.php?action=delete', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id: entry.data.id })
-        }).then(() => calendar.refetchEvents());
+        fetch('api.php?action=delete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: entry.data.id }) })
+            .then(() => calendar.refetchEvents()).catch(() => {});
     }
 }
 
@@ -411,9 +407,10 @@ document.getElementById('btn-action').addEventListener('click', () => {
     .then(res => res.json())
     .then(() => {
         checkTimerStatus();
-        setTimeout(() => calendar.refetchEvents(), 500); // Small delay to ensure DB updates
-        if(action === 'start') loadHistory(); // Refresh autocomplete
-    });
+        setTimeout(() => calendar.refetchEvents(), 500);
+        if(action === 'start') loadHistory();
+    })
+    .catch(() => { checkTimerStatus(); });
 });
 
 function checkTimerStatus() {
@@ -432,7 +429,8 @@ function checkTimerStatus() {
             document.getElementById('btn-action').classList.replace('btn-danger', 'btn-success');
             stopClock();
         }
-    });
+    })
+    .catch(() => { isRunning = false; stopClock(); });
 }
 
 function startClock(startTime) {
@@ -472,7 +470,8 @@ function loadHistory() {
                 list.appendChild(opt);
             }
         });
-    });
+    })
+    .catch(() => {});
 }
 
 function loadFavorites() {
@@ -482,7 +481,8 @@ function loadFavorites() {
         favoritesList = Array.isArray(data) ? data : [];
         renderFavoritesRow();
         loadHistory();
-    });
+    })
+    .catch(() => { loadHistory(); });
 }
 
 function renderFavoritesRow() {
@@ -526,7 +526,8 @@ function loadQuickButtons() {
             });
             wrap.appendChild(btn);
         });
-    });
+    })
+    .catch(() => {});
 }
 
 function updateStarState() {
@@ -577,7 +578,8 @@ function toggleFavorite() {
         renderFavoritesRow();
         loadHistory();
         updateStarState();
-    });
+    })
+    .catch(() => {});
 }
 
 // --- MODAL & CALENDAR LOGIC ---
@@ -626,7 +628,8 @@ function saveEvent() {
         }
         modal.hide();
         calendar.refetchEvents();
-    });
+    })
+    .catch(() => { modal.hide(); });
 }
 
 function deleteEvent() {
@@ -645,7 +648,7 @@ function deleteEvent() {
     }).then(() => {
         modal.hide();
         calendar.refetchEvents();
-    });
+    }).catch(() => { modal.hide(); });
 }
 
 function updateDbEvent(event) {
