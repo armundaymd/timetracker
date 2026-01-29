@@ -131,6 +131,18 @@ $api_url = "http://" . $_SERVER['HTTP_HOST'] . dirname($_SERVER['PHP_SELF']) . "
         html.dark .fc .fc-button-primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
         html.dark .fc .fc-button:not(.fc-button-primary) { color: var(--text-muted); border-color: var(--border); }
         html.dark .fc .fc-button:not(.fc-button-primary):hover { background: var(--border); }
+        .fc .fc-col-header-cell-cushion { color: inherit; text-decoration: none; cursor: pointer; }
+        html.dark .fc .fc-col-header-cell-cushion { color: inherit; }
+        .task-input-wrap { position: relative; flex: 1; min-width: 0; }
+        #recommendations-dropdown {
+            display: none; position: absolute; left: 0; right: 0; top: 100%; margin-top: 4px;
+            background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-sm);
+            box-shadow: var(--shadow-lg); z-index: 1050; max-height: 280px; overflow-y: auto;
+        }
+        #recommendations-dropdown.show { display: block; }
+        .recommendations-section { padding: 0.5rem 0.75rem 0.25rem; font-size: 0.75rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+        .recommendation-item { display: block; width: 100%; padding: 0.6rem 0.75rem; text-align: left; font-size: 0.9375rem; background: none; border: none; color: var(--text); cursor: pointer; border-radius: 0; }
+        .recommendation-item:hover, .recommendation-item:focus { background: var(--bg-page); }
     </style>
 </head>
 <body>
@@ -141,7 +153,6 @@ $api_url = "http://" . $_SERVER['HTTP_HOST'] . dirname($_SERVER['PHP_SELF']) . "
 <div class="timer-bar">
     <div class="container">
         <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
-            <div id="quick-buttons-wrap" class="d-flex flex-wrap gap-2 align-items-center"></div>
             <div class="ms-auto d-flex gap-2 align-items-center">
                 <button type="button" class="btn btn-outline-secondary btn-sm" id="btn-theme" title="Toggle dark mode" aria-label="Toggle dark mode" style="min-height: 44px; min-width: 44px; padding: 0;">🌙</button>
                 <button type="button" class="btn btn-outline-secondary btn-sm" id="btn-undo" title="Undo last change" style="min-height: 44px; display: none;">Undo</button>
@@ -149,23 +160,26 @@ $api_url = "http://" . $_SERVER['HTTP_HOST'] . dirname($_SERVER['PHP_SELF']) . "
                 <a href="settings.php" class="btn btn-outline-secondary btn-sm" style="min-height: 44px;">Settings</a>
             </div>
         </div>
-        <div class="timer-display-row mb-3">
+        <div class="timer-display-row mb-2">
             <div id="timer-display">00:00:00</div>
         </div>
-        <div class="d-flex flex-column gap-2 gap-md-3">
+        <div class="d-flex justify-content-center justify-content-md-start mb-3">
+            <button type="button" id="btn-action" class="btn btn-success btn-lg px-5">Start</button>
+        </div>
+        <div class="task-input-wrap mb-2">
             <div class="d-flex gap-2">
-                <select id="project-select" class="form-select flex-shrink-0" style="max-width: 140px; min-height: 48px;" title="Category (type Name: task to use)">
-                    <option value="">No project</option>
-                </select>
                 <input type="text" id="task-input" class="form-control" placeholder="What are you doing? (or Project: task)" list="history-list" autocomplete="off">
                 <datalist id="history-list"></datalist>
                 <button type="button" id="btn-star" class="btn btn-outline-secondary btn-star flex-shrink-0" title="Star as favorite" aria-label="Star as favorite">☆</button>
             </div>
-            <div class="d-flex justify-content-center justify-content-md-start">
-                <button type="button" id="btn-action" class="btn btn-success btn-lg px-5">Start</button>
-            </div>
+            <div id="recommendations-dropdown" class="recommendations-dropdown" role="listbox"></div>
         </div>
-        <div id="favorites-row" class="d-flex favorites-row align-items-center" style="display: none;"></div>
+        <div id="quick-buttons-wrap" class="d-flex flex-wrap gap-2 align-items-center mb-2"></div>
+        <div class="d-flex">
+            <select id="project-select" class="form-select" style="max-width: 200px; min-height: 44px;" title="Category (type Name: task to use)">
+                <option value="">No project</option>
+            </select>
+        </div>
     </div>
 </div>
 
@@ -276,6 +290,10 @@ document.addEventListener('DOMContentLoaded', function() {
     calendar = new FullCalendar.Calendar(calendarEl, {
         initialView: 'timeGridWeek',
         headerToolbar: { left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek,timeGridDay' },
+        navLinks: true,
+        navLinkDayClick: function(date) {
+            calendar.changeView('timeGridDay', date);
+        },
         events: function(info) {
             return fetch('api.php?action=events&start=' + encodeURIComponent(info.startStr) + '&end=' + encodeURIComponent(info.endStr))
                 .then(function(res) { return res.ok ? res.json() : []; })
@@ -328,8 +346,15 @@ document.addEventListener('DOMContentLoaded', function() {
         this.selectedIndex = 0;
     });
 
-    document.getElementById('task-input').addEventListener('input', updateStarState);
-    document.getElementById('task-input').addEventListener('focus', updateStarState);
+    document.getElementById('task-input').addEventListener('input', function() {
+        updateStarState();
+        showRecommendations();
+    });
+    document.getElementById('task-input').addEventListener('focus', function() {
+        updateStarState();
+        showRecommendations();
+    });
+    document.getElementById('task-input').addEventListener('blur', hideRecommendations);
     document.getElementById('btn-star').addEventListener('click', toggleFavorite);
     document.getElementById('btn-undo').addEventListener('click', performUndo);
 
@@ -454,60 +479,81 @@ function stopClock() {
 
 let favoritesList = [];
 let quickButtonsList = [];
-
-function loadHistory() {
-    fetch('api.php?action=history')
-    .then(res => res.json())
-    .then(data => {
-        const list = document.getElementById('history-list');
-        list.innerHTML = '';
-        (favoritesList || []).forEach(item => {
-            let opt = document.createElement('option');
-            opt.value = item;
-            list.appendChild(opt);
-        });
-        (data || []).forEach(item => {
-            if (!favoritesList.includes(item)) {
-                let opt = document.createElement('option');
-                opt.value = item;
-                list.appendChild(opt);
-            }
-        });
-    })
-    .catch(() => {});
-}
+let historyList = [];
 
 function loadFavorites() {
     fetch('api.php?action=favorites')
     .then(res => res.json())
     .then(data => {
         favoritesList = Array.isArray(data) ? data : [];
-        renderFavoritesRow();
         loadHistory();
     })
     .catch(() => { loadHistory(); });
 }
 
-function renderFavoritesRow() {
-    const row = document.getElementById('favorites-row');
-    row.innerHTML = '';
-    if (favoritesList.length === 0) {
-        row.style.display = 'none';
-        return;
-    }
-    row.style.display = 'flex';
-    favoritesList.forEach(title => {
-        const chip = document.createElement('span');
-        chip.className = 'badge bg-light text-dark border favorite-chip';
-        chip.textContent = title;
-        chip.title = 'Click to use';
-        chip.addEventListener('click', () => {
-            document.getElementById('task-input').value = title;
-            document.getElementById('task-input').focus();
-            updateStarState();
+function loadHistory() {
+    fetch('api.php?action=history')
+    .then(res => res.json())
+    .then(data => {
+        historyList = Array.isArray(data) ? data : [];
+    })
+    .catch(() => {});
+}
+
+function showRecommendations() {
+    const input = document.getElementById('task-input');
+    const dropdown = document.getElementById('recommendations-dropdown');
+    const val = (input.value || '').trim().toLowerCase();
+    dropdown.innerHTML = '';
+    let hasItems = false;
+    if (favoritesList.length > 0) {
+        const section = document.createElement('div');
+        section.className = 'recommendations-section';
+        section.textContent = 'Recommended';
+        dropdown.appendChild(section);
+        const filtered = val ? favoritesList.filter(t => t.toLowerCase().includes(val)) : favoritesList.slice(0, 8);
+        filtered.forEach(title => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'recommendation-item';
+            btn.textContent = title;
+            btn.addEventListener('click', () => {
+                input.value = title;
+                dropdown.classList.remove('show');
+                updateStarState();
+            });
+            dropdown.appendChild(btn);
+            hasItems = true;
         });
-        row.appendChild(chip);
-    });
+    }
+    if (historyList.length > 0) {
+        const section = document.createElement('div');
+        section.className = 'recommendations-section';
+        section.textContent = 'Recent';
+        dropdown.appendChild(section);
+        const filtered = val ? historyList.filter(t => t.toLowerCase().includes(val)) : historyList.slice(0, 6);
+        filtered.forEach(title => {
+            if (favoritesList.includes(title)) return;
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'recommendation-item';
+            btn.textContent = title;
+            btn.addEventListener('click', () => {
+                input.value = title;
+                dropdown.classList.remove('show');
+                updateStarState();
+            });
+            dropdown.appendChild(btn);
+            hasItems = true;
+        });
+    }
+    if (hasItems) dropdown.classList.add('show'); else dropdown.classList.remove('show');
+}
+
+function hideRecommendations() {
+    setTimeout(function() {
+        document.getElementById('recommendations-dropdown').classList.remove('show');
+    }, 150);
 }
 
 function loadQuickButtons() {
@@ -578,7 +624,6 @@ function toggleFavorite() {
         } else {
             favoritesList = favoritesList.filter(t => t !== title);
         }
-        renderFavoritesRow();
         loadHistory();
         updateStarState();
     })
