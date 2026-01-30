@@ -389,14 +389,33 @@ export default function Tracker() {
           {favorites.length > 0 && (
             <div className="flex flex-wrap gap-2 mt-3">
               {favorites.map((title) => (
-                <button
+                <span
                   key={title}
-                  type="button"
-                  onClick={() => setTaskTitle(title)}
-                  className="px-3 py-1.5 text-sm rounded-full border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600"
+                  className="inline-flex items-center gap-1 px-3 py-1.5 text-sm rounded-full border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 group"
                 >
-                  {title}
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => setTaskTitle(title)}
+                    className="text-left truncate max-w-[200px]"
+                  >
+                    {title}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async (e) => {
+                      e.stopPropagation();
+                      try {
+                        await toggleFavorite(title);
+                        setFavorites((prev) => prev.filter((t) => t !== title));
+                      } catch {}
+                    }}
+                    title="Remove from favorites"
+                    className="text-slate-400 hover:text-red-500 dark:hover:text-red-400 ml-0.5 rounded-full p-0.5 leading-none"
+                    aria-label={`Unstar ${title}`}
+                  >
+                    ×
+                  </button>
+                </span>
               ))}
             </div>
           )}
