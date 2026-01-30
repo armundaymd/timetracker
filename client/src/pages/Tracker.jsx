@@ -58,6 +58,10 @@ export default function Tracker() {
   const [showHistoryDropdown, setShowHistoryDropdown] = useState(false);
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 0 });
   const hideDropdownTimerRef = useRef(null);
+  const [confirmModal, setConfirmModal] = useState(null);
+  const [calendarInitialView] = useState(() =>
+    typeof window !== 'undefined' && window.innerWidth < 768 ? 'timeGridDay' : 'timeGridWeek'
+  );
 
   const fetchStatus = useCallback(async () => {
     try {
@@ -228,25 +232,37 @@ export default function Tracker() {
     } catch {}
   };
 
-  const handleDeleteEvent = async () => {
-    if (!modal?.id || !confirm('Delete?')) return;
-    try {
-      await deleteEvent(modal.id);
-      setModal(null);
-      if (calendarRef.current) calendarRef.current.getApi().refetchEvents();
-    } catch {}
+  const handleDeleteEvent = () => {
+    if (!modal?.id) return;
+    setConfirmModal({
+      message: 'Delete this task?',
+      onConfirm: async () => {
+        try {
+          await deleteEvent(modal.id);
+          setModal(null);
+          setConfirmModal(null);
+          if (calendarRef.current) calendarRef.current.getApi().refetchEvents();
+        } catch {}
+      },
+    });
   };
 
   const currentProjectColor = status?.project_id ? (projects.find((p) => p.id === Number(status.project_id))?.color) : null;
 
-  const handleBulkDelete = async () => {
-    if (selectedEventIds.length === 0 || !confirm(`Delete ${selectedEventIds.length} task(s)?`)) return;
-    try {
-      await bulkDeleteTaskIds(selectedEventIds);
-      setSelectedEventIds([]);
-      setSelectionMode(false);
-      if (calendarRef.current) calendarRef.current.getApi().refetchEvents();
-    } catch {}
+  const handleBulkDelete = () => {
+    if (selectedEventIds.length === 0) return;
+    setConfirmModal({
+      message: `Delete ${selectedEventIds.length} task(s)?`,
+      onConfirm: async () => {
+        try {
+          await bulkDeleteTaskIds(selectedEventIds);
+          setSelectedEventIds([]);
+          setSelectionMode(false);
+          setConfirmModal(null);
+          if (calendarRef.current) calendarRef.current.getApi().refetchEvents();
+        } catch {}
+      },
+    });
   };
 
   const handleBulkAssign = async () => {
@@ -518,11 +534,42 @@ export default function Tracker() {
             </button>
             </div>
           </div>
+          <style>{`
+            @media (max-width: 768px) {
+              .calendar-mobile-wrap .fc .fc-toolbar.fc-header-toolbar {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 0.5rem;
+                justify-content: center;
+                align-items: center;
+              }
+              .calendar-mobile-wrap .fc .fc-toolbar-chunk {
+                display: flex;
+                flex-wrap: wrap;
+                align-items: center;
+                justify-content: center;
+                gap: 0.35rem;
+              }
+              .calendar-mobile-wrap .fc .fc-toolbar-chunk:first-child { order: 1; }
+              .calendar-mobile-wrap .fc .fc-toolbar-chunk:nth-child(2) { order: -1; width: 100%; }
+              .calendar-mobile-wrap .fc .fc-toolbar-chunk:last-child { order: 2; }
+              .calendar-mobile-wrap .fc .fc-toolbar-title {
+                font-size: 0.9375rem;
+                margin: 0;
+              }
+              .calendar-mobile-wrap .fc .fc-button {
+                padding: 0.35rem 0.6rem;
+                font-size: 0.8125rem;
+              }
+            }
+          `}</style>
+          <div className="calendar-mobile-wrap">
           <FullCalendar
             ref={calendarRef}
             plugins={[timeGridPlugin, dayGridPlugin, interactionPlugin]}
-            initialView="timeGridWeek"
+            initialView={calendarInitialView}
             headerToolbar={{ left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek,timeGridDay' }}
+            buttonText={{ today: 'Today', month: 'Month', week: 'Week', day: 'Day' }}
             events={eventsUrl}
             eventDataTransform={(event) => ({ ...event, extendedProps: { ...(event.extendedProps || {}), description: event.description } })}
             editable
@@ -556,8 +603,30 @@ export default function Tracker() {
             }}
             height="auto"
           />
+          </div>
         </div>
       </div>
+
+      {/* Confirm modal (no browser confirm popup) */}
+      {confirmModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50" onClick={() => setConfirmModal(null)}>
+          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl max-w-sm w-full p-6 border border-slate-200 dark:border-slate-700" onClick={(e) => e.stopPropagation()}>
+            <p className="text-slate-700 dark:text-slate-200 mb-6">{confirmModal.message}</p>
+            <div className="flex justify-end gap-2">
+              <button type="button" onClick={() => setConfirmModal(null)} className="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600">
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => { confirmModal.onConfirm(); }}
+                className="px-4 py-2 rounded-lg bg-red-500 hover:bg-red-600 text-white"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Edit modal */}
       {modal && (

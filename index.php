@@ -162,6 +162,19 @@ $api_url = "http://" . $_SERVER['HTTP_HOST'] . dirname($_SERVER['PHP_SELF']) . "
         .recommendation-star { flex-shrink: 0; width: 32px; height: 32px; padding: 0; font-size: 1.1rem; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-page); color: #b45309; cursor: pointer; display: flex; align-items: center; justify-content: center; }
         .recommendation-star:hover { background: rgba(180, 83, 9, 0.15); }
         .recommendation-star.fav { color: #b45309; }
+        @media (max-width: 768px) {
+            #calendar-container .fc .fc-toolbar.fc-header-toolbar {
+                display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: center; align-items: center;
+            }
+            #calendar-container .fc .fc-toolbar-chunk {
+                display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 0.35rem;
+            }
+            #calendar-container .fc .fc-toolbar-chunk:first-child { order: 1; }
+            #calendar-container .fc .fc-toolbar-chunk:nth-child(2) { order: -1; width: 100%; }
+            #calendar-container .fc .fc-toolbar-chunk:last-child { order: 2; }
+            #calendar-container .fc .fc-toolbar-title { font-size: 0.9375rem; margin: 0; }
+            #calendar-container .fc .fc-button { padding: 0.35rem 0.6rem; font-size: 0.8125rem; }
+        }
     </style>
 </head>
 <body>
@@ -250,11 +263,25 @@ $api_url = "http://" . $_SERVER['HTTP_HOST'] . dirname($_SERVER['PHP_SELF']) . "
                 </div>
             </div>
             <div class="modal-footer justify-content-between border-top" style="border-color: var(--border) !important;">
-                <button type="button" class="btn btn-danger" id="btn-delete" onclick="deleteEvent()" style="display:none;">Delete</button>
+                <button type="button" class="btn btn-danger" id="btn-delete" onclick="showConfirmDeleteModal()" style="display:none;">Delete</button>
                 <div class="d-flex gap-2">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                     <button type="button" class="btn btn-primary" onclick="saveEvent()">Save</button>
                 </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="confirmDeleteModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content" style="border-radius: var(--radius); border: 1px solid var(--border);">
+            <div class="modal-body">
+                <p class="mb-0 fw-500">Are you sure?</p>
+            </div>
+            <div class="modal-footer border-top justify-content-end gap-2" style="border-color: var(--border) !important;">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" id="confirmDeleteBtn">Delete</button>
             </div>
         </div>
     </div>
@@ -271,6 +298,7 @@ const UNDO_MAX = 10;
 let undoStack = [];
 const modal = new bootstrap.Modal(document.getElementById('eventModal'));
 const subscribeModal = new bootstrap.Modal(document.getElementById('subscribeModal'));
+const confirmDeleteModal = new bootstrap.Modal(document.getElementById('confirmDeleteModal'));
 
 document.addEventListener('DOMContentLoaded', function() {
     // Real-time sync: when timer is started/stopped on another device, update UI
@@ -300,11 +328,13 @@ document.addEventListener('DOMContentLoaded', function() {
         copySubscribeUrl();
     });
 
-    // 1. INIT CALENDAR
+    // 1. INIT CALENDAR (day view on mobile)
     var calendarEl = document.getElementById('calendar');
+    var calendarInitialView = window.innerWidth < 768 ? 'timeGridDay' : 'timeGridWeek';
     calendar = new FullCalendar.Calendar(calendarEl, {
-        initialView: 'timeGridWeek',
+        initialView: calendarInitialView,
         headerToolbar: { left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek,timeGridDay' },
+        buttonText: { today: 'Today', month: 'Month', week: 'Week', day: 'Day' },
         navLinks: true,
         navLinkDayClick: function(date) {
             calendar.changeView('timeGridDay', date);
@@ -387,6 +417,8 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     setInterval(() => calendar.refetchEvents(), 300000);
+
+    document.getElementById('confirmDeleteBtn').addEventListener('click', doDeleteEvent);
 });
 
 function loadProjects() {
@@ -734,12 +766,15 @@ function saveEvent() {
     .catch(() => { modal.hide(); });
 }
 
-function deleteEvent() {
+function showConfirmDeleteModal() {
+    confirmDeleteModal.show();
+}
+
+function doDeleteEvent() {
     const id = document.getElementById('entry-id').value;
     const title = document.getElementById('entry-title').value;
     const start = document.getElementById('entry-start').value;
     const end = document.getElementById('entry-end').value;
-    if (!confirm("Are you sure?")) return;
 
     pushUndo({ type: 'delete', data: { title, start, end } });
 
@@ -748,9 +783,13 @@ function deleteEvent() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id })
     }).then(() => {
+        confirmDeleteModal.hide();
         modal.hide();
         calendar.refetchEvents();
-    }).catch(() => { modal.hide(); });
+    }).catch(() => {
+        confirmDeleteModal.hide();
+        modal.hide();
+    });
 }
 
 function updateDbEvent(event) {
