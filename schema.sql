@@ -19,13 +19,16 @@ CREATE TABLE `tasks` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `user_id` int(11) NOT NULL,
   `title` varchar(255) NOT NULL,
+  `description` text DEFAULT NULL,
   `start_time` datetime NOT NULL,
   `end_time` datetime DEFAULT NULL,
   `is_running` tinyint(1) DEFAULT 0,
   `project_id` int(11) DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `user_id` (`user_id`),
-  KEY `project_id` (`project_id`)
+  KEY `project_id` (`project_id`),
+  INDEX `idx_user_running` (`user_id`, `is_running`),
+  INDEX `idx_user_starttime` (`user_id`, `start_time`)
 );
 
 -- Starred task titles for quick reuse (from "What are you doing?" input)
@@ -52,6 +55,13 @@ CREATE TABLE `user_quick_buttons` (
 -- You should change the password immediately after logging in or manually via MD5/Hash
 INSERT INTO `users` (`username`, `password`, `api_token`) VALUES
 ('admin', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'bk32-secret-token-8842');
+
+-- If you already have the app installed, add task description (run once):
+-- ALTER TABLE tasks ADD COLUMN description text DEFAULT NULL AFTER title;
+
+-- If you already have the app installed, add performance indexes (run once):
+-- CREATE INDEX idx_user_running ON tasks (user_id, is_running);
+-- CREATE INDEX idx_user_starttime ON tasks (user_id, start_time);
 
 -- If you already have the app installed, run only these to add projects + heatmap support:
 -- CREATE TABLE IF NOT EXISTS `projects` ( `id` int(11) NOT NULL AUTO_INCREMENT, `user_id` int(11) NOT NULL, `name` varchar(50) NOT NULL, `color` varchar(7) DEFAULT '#0ea5e9', PRIMARY KEY (`id`), KEY `user_id` (`user_id`) );

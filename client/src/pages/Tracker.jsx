@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import FullCalendar from '@fullcalendar/react';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import dayGridPlugin from '@fullcalendar/daygrid';
@@ -12,6 +12,8 @@ import {
   createEvent,
   updateEvent,
   deleteEvent,
+  bulkDeleteTaskIds,
+  bulkAssignProject,
   getFavorites,
   toggleFavorite,
   getQuickButtons,
@@ -27,19 +29,30 @@ function formatTime(date) {
   return new Date(d - offset).toISOString().slice(0, 16);
 }
 
+const DEFAULT_TITLE = 'Time Tracker';
+const RUNNING_FAVICON = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23ef4444"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2" stroke="white" stroke-width="2" fill="none"/></svg>';
+
 export default function Tracker() {
   const { token, logout } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
   const [status, setStatus] = useState(null);
   const [taskTitle, setTaskTitle] = useState('');
+  const [taskDescription, setTaskDescription] = useState('');
   const [timerStr, setTimerStr] = useState('00:00:00');
   const [favorites, setFavorites] = useState([]);
   const [quickButtons, setQuickButtons] = useState([]);
   const [projects, setProjects] = useState([]);
   const [history, setHistory] = useState([]);
   const [modal, setModal] = useState(null);
-  const [undoStack, setUndoStack] = useState([]);
+  const [forgetStopDismissed, setForgetStopDismissed] = useState(false);
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedEventIds, setSelectedEventIds] = useState([]);
+  const [bulkProjectId, setBulkProjectId] = useState('');
   const timerRef = useRef(null);
   const calendarRef = useRef(null);
+  const taskInputRef = useRef(null);
+  const prevFaviconRef = useRef(null);
 
   const fetchStatus = useCallback(async () => {
     try {
@@ -56,6 +69,39 @@ export default function Tracker() {
   useEffect(() => {
     fetchStatus();
   }, [fetchStatus]);
+
+  // Click-to-restart from Analytics: populate input and start timer
+  useEffect(() => {
+    const startTask = location.state?.startTask;
+    if (!startTask || typeof startTask !== 'string') return;
+    setTaskTitle(startTask);
+    navigate('.', { replace: true, state: {} });
+    startTimer(startTask).then(() => {
+      fetchStatus();
+      if (calendarRef.current) calendarRef.current.getApi().refetchEvents();
+    }).catch(() => {});
+  }, [location.state?.startTask, navigate, fetchStatus]);
+
+  // Favicon & document title when timer is running
+  useEffect(() => {
+    const link = document.querySelector("link[rel*='icon']") || (() => {
+      const l = document.createElement('link');
+      l.rel = 'icon';
+      document.head.appendChild(l);
+      return l;
+    })();
+    if (status) {
+      prevFaviconRef.current = link.href;
+      link.href = RUNNING_FAVICON;
+      link.type = 'image/svg+xml';
+      document.title = `${timerStr} · ${status.title || 'Timer'} – ${DEFAULT_TITLE}`;
+    } else {
+      if (prevFaviconRef.current) link.href = prevFaviconRef.current;
+      document.title = DEFAULT_TITLE;
+    }
+    return () => { document.title = DEFAULT_TITLE; };
+  }, [status, timerStr]);
+
 
   useEffect(() => {
     if (!status) {
@@ -100,15 +146,37 @@ export default function Tracker() {
     } catch {}
   }, [token, fetchStatus]);
 
-  const handleStartStop = async () => {
+  const handleStartStop = useCallback(async () => {
     try {
       if (status) await stopTimer();
-      else await startTimer(taskTitle || 'Untitled Task');
+      else await startTimer(taskTitle || 'Untitled Task', taskDescription);
       await fetchStatus();
       if (calendarRef.current) calendarRef.current.getApi().refetchEvents();
       if (!status) getHistory().then((d) => setHistory(d || []));
     } catch {}
-  };
+  }, [status, taskTitle, taskDescription, fetchStatus]);
+
+  useEffect(() => {
+    const onKeyDown = (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) {
+        if (e.key.toLowerCase() === 'n' && (e.metaKey || e.ctrlKey)) {
+          e.preventDefault();
+          taskInputRef.current?.focus();
+        }
+        return;
+      }
+      if (e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        handleStartStop();
+      }
+      if (e.key.toLowerCase() === 'n') {
+        e.preventDefault();
+        taskInputRef.current?.focus();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [handleStartStop]);
 
   const handleStar = async () => {
     const title = taskTitle.trim();
@@ -124,23 +192,32 @@ export default function Tracker() {
     getEvents(info.startStr, info.endStr).catch(() => []);
 
   const handleEventClick = (info) => {
+    if (selectionMode) {
+      const id = info.event.id;
+      setSelectedEventIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
+      return;
+    }
+    const ext = info.event.extendedProps || {};
     setModal({
       id: info.event.id,
       title: info.event.title,
+      description: ext.description ?? info.event.description ?? '',
       start: formatTime(info.event.start),
       end: info.event.end ? formatTime(info.event.end) : '',
     });
   };
 
   const handleSelect = (info) => {
-    setModal({ id: null, title: '', start: formatTime(info.start), end: formatTime(info.end) });
+    if (selectionMode) return;
+    setModal({ id: null, title: '', description: '', start: formatTime(info.start), end: formatTime(info.end) });
   };
 
   const handleSaveEvent = async () => {
     if (!modal) return;
     try {
-      if (modal.id) await updateEvent({ id: modal.id, title: modal.title, start: modal.start, end: modal.end });
-      else await createEvent({ title: modal.title, start: modal.start, end: modal.end });
+      const payload = { title: modal.title, description: modal.description ?? '', start: modal.start, end: modal.end };
+      if (modal.id) await updateEvent({ id: modal.id, ...payload });
+      else await createEvent(payload);
       setModal(null);
       if (calendarRef.current) calendarRef.current.getApi().refetchEvents();
     } catch {}
@@ -155,6 +232,29 @@ export default function Tracker() {
     } catch {}
   };
 
+  const currentProjectColor = status?.project_id ? (projects.find((p) => p.id === Number(status.project_id))?.color) : null;
+
+  const handleBulkDelete = async () => {
+    if (selectedEventIds.length === 0 || !confirm(`Delete ${selectedEventIds.length} task(s)?`)) return;
+    try {
+      await bulkDeleteTaskIds(selectedEventIds);
+      setSelectedEventIds([]);
+      setSelectionMode(false);
+      if (calendarRef.current) calendarRef.current.getApi().refetchEvents();
+    } catch {}
+  };
+
+  const handleBulkAssign = async () => {
+    if (selectedEventIds.length === 0) return;
+    try {
+      await bulkAssignProject(selectedEventIds, bulkProjectId ? Number(bulkProjectId) : null);
+      setSelectedEventIds([]);
+      setBulkProjectId('');
+      setSelectionMode(false);
+      if (calendarRef.current) calendarRef.current.getApi().refetchEvents();
+    } catch {}
+  };
+
   const [dark, setDark] = useState(() => localStorage.getItem('darkMode') === 'true');
   useEffect(() => {
     if (dark) document.documentElement.classList.add('dark');
@@ -164,7 +264,37 @@ export default function Tracker() {
 
   return (
     <div className="min-h-screen bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-white font-sans pb-8">
-      {/* Timer bar */}
+      {/* "Did you forget to stop?" banner */}
+      {status?.forget_stop && !forgetStopDismissed && (
+        <div className="sticky top-0 z-[60] bg-amber-100 dark:bg-amber-900/40 border-b border-amber-300 dark:border-amber-700 px-4 py-3 flex flex-wrap items-center justify-between gap-2">
+          <span className="text-amber-900 dark:text-amber-100 font-medium">
+            Did you forget to stop? This timer has been running for over 8 hours.
+          </span>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setForgetStopDismissed(true)}
+              className="px-3 py-1.5 rounded-lg bg-amber-200 dark:bg-amber-800 text-amber-900 dark:text-amber-100"
+            >
+              Confirm (keep running)
+            </button>
+            <button
+              type="button"
+              onClick={async () => {
+                await stopTimer();
+                await fetchStatus();
+                setForgetStopDismissed(true);
+                if (calendarRef.current) calendarRef.current.getApi().refetchEvents();
+              }}
+              className="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white"
+            >
+              Adjust (stop now)
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Timer bar – sticky */}
       <div className="sticky top-0 z-50 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 shadow-sm">
         <div className="max-w-4xl mx-auto px-4 py-4">
           <div className="flex flex-wrap items-center gap-2 mb-3">
@@ -199,11 +329,16 @@ export default function Tracker() {
           </div>
 
           <div className="flex justify-center mb-4">
-            <div className="text-4xl md:text-5xl font-bold tabular-nums tracking-wide">{timerStr}</div>
+            <div className={`text-4xl md:text-6xl font-bold tabular-nums tracking-wide ${status ? 'animate-pulse' : ''}`}>
+              {timerStr}
+            </div>
           </div>
 
           <div className="space-y-3">
-            <div className="flex gap-2">
+            <div
+              className={`flex gap-2 rounded-xl border border-slate-300 dark:border-slate-600 transition-colors ${currentProjectColor ? 'border-l-4' : ''}`}
+              style={currentProjectColor ? { borderLeftColor: currentProjectColor } : {}}
+            >
               <select
                 className="w-36 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-3 text-sm"
                 onChange={(e) => {
@@ -218,10 +353,11 @@ export default function Tracker() {
                 ))}
               </select>
               <input
+                ref={taskInputRef}
                 type="text"
                 value={taskTitle}
                 onChange={(e) => setTaskTitle(e.target.value)}
-                placeholder="What are you doing? (or Project: task)"
+                placeholder="What are you doing? (or Project: task) — N to focus"
                 list="history-list"
                 className="flex-1 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 px-4 py-3 focus:ring-2 focus:ring-sky-500 focus:border-transparent"
               />
@@ -241,7 +377,9 @@ export default function Tracker() {
               <button
                 type="button"
                 onClick={handleStartStop}
-                className={`px-8 py-3 rounded-xl font-semibold text-lg ${status ? 'bg-red-500 hover:bg-red-600' : 'bg-emerald-500 hover:bg-emerald-600'} text-white`}
+                className={`px-8 py-3 rounded-xl font-semibold text-lg text-white ${status ? 'bg-red-500 hover:bg-red-600' : currentProjectColor ? 'hover:opacity-90' : 'bg-emerald-500 hover:bg-emerald-600'}`}
+                style={!status && currentProjectColor ? { backgroundColor: currentProjectColor } : {}}
+                title="Start/Stop (S)"
               >
                 {status ? 'Stop' : 'Start'}
               </button>
@@ -268,15 +406,31 @@ export default function Tracker() {
       {/* Calendar */}
       <div className="max-w-4xl mx-auto px-4 mt-6">
         <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-lg p-4">
-          <div className="flex justify-between items-center mb-3">
+          <div className="flex flex-wrap justify-between items-center gap-2 mb-3">
             <h2 className="text-lg font-semibold">My Schedule</h2>
-            <button
+            <div className="flex items-center gap-2">
+              {selectionMode ? (
+                <>
+                  <span className="text-sm text-slate-500">{selectedEventIds.length} selected</span>
+                  <select value={bulkProjectId} onChange={(e) => setBulkProjectId(e.target.value)} className="text-sm rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 px-2 py-1">
+                    <option value="">No project</option>
+                    {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
+                  <button type="button" onClick={handleBulkAssign} className="text-sm px-2 py-1 rounded-lg border border-sky-500 text-sky-500 hover:bg-sky-500 hover:text-white">Assign project</button>
+                  <button type="button" onClick={handleBulkDelete} className="text-sm px-2 py-1 rounded-lg border border-red-500 text-red-500 hover:bg-red-500 hover:text-white">Delete selected</button>
+                  <button type="button" onClick={() => { setSelectionMode(false); setSelectedEventIds([]); }} className="text-sm px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-600">Cancel</button>
+                </>
+              ) : (
+                <button type="button" onClick={() => setSelectionMode(true)} className="text-sm px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700">Select tasks</button>
+              )}
+              <button
               type="button"
               onClick={() => logout()}
               className="text-sm text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
             >
               Log out
             </button>
+            </div>
           </div>
           <FullCalendar
             ref={calendarRef}
@@ -284,6 +438,7 @@ export default function Tracker() {
             initialView="timeGridWeek"
             headerToolbar={{ left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek,timeGridDay' }}
             events={eventsUrl}
+            eventDataTransform={(event) => ({ ...event, extendedProps: { ...(event.extendedProps || {}), description: event.description } })}
             editable
             selectable
             selectMirror
@@ -331,6 +486,16 @@ export default function Tracker() {
                   value={modal.title}
                   onChange={(e) => setModal((m) => ({ ...m, title: e.target.value }))}
                   className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-1">Notes (optional)</label>
+                <textarea
+                  value={modal.description ?? ''}
+                  onChange={(e) => setModal((m) => ({ ...m, description: e.target.value }))}
+                  rows={2}
+                  className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 resize-none"
+                  placeholder="Details without cluttering the title"
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">

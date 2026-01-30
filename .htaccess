@@ -1,0 +1,7 @@
+# Deny web access to sensitive files
+<Files ".env">
+    Require all denied
+</Files>
+<Files "app_errors.log">
+    Require all denied
+</Files>

@@ -8,6 +8,7 @@ client/node_modules/
 .env
 .env.local
 .env.*.local
+app_errors.log
 .DS_Store
 *.swift
 apps/README.md

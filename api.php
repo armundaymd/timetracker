@@ -1,6 +1,19 @@
 <?php
 require 'config.php';
+
+$allowedOrigin = $_ENV['ALLOWED_ORIGIN'] ?? '';
+if ($allowedOrigin !== '') {
+    header('Access-Control-Allow-Origin: ' . $allowedOrigin);
+    header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
+    header('Access-Control-Allow-Headers: Content-Type, Authorization');
+    header('Access-Control-Max-Age: 86400');
+}
 header('Content-Type: application/json');
+
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    http_response_code(204);
+    exit;
+}
 
 $action = $_GET['action'] ?? '';
 $data = json_decode(file_get_contents('php://input'), true) ?? [];
@@ -64,20 +77,29 @@ function resolve_project_from_title(PDO $pdo, $title, $user_id) {
 }
 
 try {
-    // 1. GET STATUS (Current Timer)
+    // 1. GET STATUS (Current Timer) – includes project_color and forget_stop when running > 8h
     if ($action === 'status') {
-        $stmt = $pdo->prepare("SELECT * FROM tasks WHERE user_id = ? AND is_running = 1 LIMIT 1");
+        $stmt = $pdo->prepare("SELECT t.*, p.color AS project_color FROM tasks t LEFT JOIN projects p ON t.project_id = p.id WHERE t.user_id = ? AND t.is_running = 1 LIMIT 1");
         $stmt->execute([$user_id]);
-        echo json_encode($stmt->fetch(PDO::FETCH_ASSOC));
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if ($row) {
+            $elapsed = time() - strtotime($row['start_time']);
+            if ($elapsed >= 8 * 3600) {
+                $row['forget_stop'] = true;
+                $row['elapsed_seconds'] = (int) $elapsed;
+            }
+        }
+        echo json_encode($row);
     }
 
     // 2. START TIMER
     elseif ($action === 'start') {
         $pdo->prepare("UPDATE tasks SET end_time = NOW(), is_running = 0 WHERE user_id = ? AND is_running = 1")->execute([$user_id]);
         $title = $_POST['title'] ?? 'Untitled Task';
+        $description = trim($_POST['description'] ?? '');
         $project_id = resolve_project_from_title($pdo, $title, $user_id);
-        $stmt = $pdo->prepare("INSERT INTO tasks (user_id, title, start_time, is_running, project_id) VALUES (?, ?, NOW(), 1, ?)");
-        $stmt->execute([$user_id, $title, $project_id]);
+        $stmt = $pdo->prepare("INSERT INTO tasks (user_id, title, description, start_time, is_running, project_id) VALUES (?, ?, ?, NOW(), 1, ?)");
+        $stmt->execute([$user_id, $title, $description ?: null, $project_id]);
         echo json_encode(['status' => 'success']);
     }
 
@@ -91,7 +113,7 @@ try {
     elseif ($action === 'events') {
         $start = $_GET['start'];
         $end = $_GET['end'];
-        $stmt = $pdo->prepare("SELECT t.id, t.title, t.start_time as start, t.end_time as end, t.is_running, t.project_id, p.color as project_color FROM tasks t LEFT JOIN projects p ON t.project_id = p.id WHERE t.user_id = ? AND t.start_time BETWEEN ? AND ?");
+        $stmt = $pdo->prepare("SELECT t.id, t.title, t.description, t.start_time as start, t.end_time as end, t.is_running, t.project_id, p.color as project_color FROM tasks t LEFT JOIN projects p ON t.project_id = p.id WHERE t.user_id = ? AND t.start_time BETWEEN ? AND ?");
         $stmt->execute([$user_id, $start, $end]);
         $events = $stmt->fetchAll(PDO::FETCH_ASSOC);
         
@@ -112,8 +134,9 @@ try {
     // 5. UPDATE EVENT (Drag/Drop/Resize/Edit)
     elseif ($action === 'update') {
         $project_id = resolve_project_from_title($pdo, $data['title'] ?? '', $user_id);
-        $stmt = $pdo->prepare("UPDATE tasks SET title = ?, start_time = ?, end_time = ?, project_id = ? WHERE id = ? AND user_id = ?");
-        $stmt->execute([$data['title'], $data['start'], $data['end'], $project_id, $data['id'], $user_id]);
+        $description = trim($data['description'] ?? '');
+        $stmt = $pdo->prepare("UPDATE tasks SET title = ?, description = ?, start_time = ?, end_time = ?, project_id = ? WHERE id = ? AND user_id = ?");
+        $stmt->execute([$data['title'], $description ?: null, $data['start'], $data['end'], $project_id, $data['id'], $user_id]);
         echo json_encode(['status' => 'updated']);
     }
 
@@ -127,8 +150,9 @@ try {
     // 7. CREATE MANUAL ENTRY (returns new id for undo)
     elseif ($action === 'create') {
         $project_id = resolve_project_from_title($pdo, $data['title'] ?? '', $user_id);
-        $stmt = $pdo->prepare("INSERT INTO tasks (user_id, title, start_time, end_time, is_running, project_id) VALUES (?, ?, ?, ?, 0, ?)");
-        $stmt->execute([$user_id, $data['title'], $data['start'], $data['end'], $project_id]);
+        $description = isset($data['description']) ? trim($data['description']) : null;
+        $stmt = $pdo->prepare("INSERT INTO tasks (user_id, title, description, start_time, end_time, is_running, project_id) VALUES (?, ?, ?, ?, ?, 0, ?)");
+        $stmt->execute([$user_id, $data['title'], $description, $data['start'], $data['end'], $project_id]);
         echo json_encode(['status' => 'created', 'id' => (int) $pdo->lastInsertId()]);
     }
 
@@ -312,13 +336,72 @@ try {
 
     // 18. EXPORT (backup all tasks as JSON)
     elseif ($action === 'export') {
-        $stmt = $pdo->prepare("SELECT id, title, start_time, end_time, is_running, project_id FROM tasks WHERE user_id = ? ORDER BY start_time DESC");
+        $stmt = $pdo->prepare("SELECT id, title, description, start_time, end_time, is_running, project_id FROM tasks WHERE user_id = ? ORDER BY start_time DESC");
         $stmt->execute([$user_id]);
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
         header('Content-Type: application/json');
         header('Content-Disposition: attachment; filename="time_tracker_backup_' . date('Y-m-d') . '.json"');
         echo json_encode($rows, JSON_PRETTY_PRINT);
         exit;
+    }
+
+    // 19. EXPORT CSV (for Excel / reporting)
+    elseif ($action === 'export_csv') {
+        $start = $_GET['start'] ?? null;
+        $end = $_GET['end'] ?? null;
+        $sql = "SELECT t.id, t.title, t.description, t.start_time, t.end_time, t.is_running, p.name AS project_name FROM tasks t LEFT JOIN projects p ON t.project_id = p.id WHERE t.user_id = ?";
+        $params = [$user_id];
+        if ($start) { $sql .= " AND t.start_time >= ?"; $params[] = $start; }
+        if ($end) { $sql .= " AND t.start_time < DATE_ADD(?, INTERVAL 1 DAY)"; $params[] = $end; }
+        $sql .= " ORDER BY t.start_time DESC";
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute($params);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        header('Content-Type: text/csv; charset=UTF-8');
+        header('Content-Disposition: attachment; filename="time_tracker_' . date('Y-m-d') . '.csv"');
+        $out = fopen('php://output', 'w');
+        fprintf($out, "\xEF\xBB\xBF"); // UTF-8 BOM for Excel
+        if (count($rows)) {
+            fputcsv($out, array_keys($rows[0]));
+            foreach ($rows as $r) {
+                fputcsv($out, $r);
+            }
+        } else {
+            fputcsv($out, ['id', 'title', 'description', 'start_time', 'end_time', 'is_running', 'project_name']);
+        }
+        fclose($out);
+        exit;
+    }
+
+    // 20. BULK DELETE
+    elseif ($action === 'bulk_delete') {
+        $ids = $data['ids'] ?? [];
+        if (!is_array($ids)) $ids = [];
+        $ids = array_map('intval', array_filter($ids));
+        if (empty($ids)) {
+            echo json_encode(['error' => 'No task IDs provided']);
+            exit;
+        }
+        $placeholders = implode(',', array_fill(0, count($ids), '?'));
+        $stmt = $pdo->prepare("DELETE FROM tasks WHERE user_id = ? AND id IN ($placeholders)");
+        $stmt->execute(array_merge([$user_id], $ids));
+        echo json_encode(['status' => 'deleted', 'count' => $stmt->rowCount()]);
+    }
+
+    // 21. BULK ASSIGN PROJECT
+    elseif ($action === 'bulk_assign_project') {
+        $ids = $data['ids'] ?? [];
+        $project_id = isset($data['project_id']) ? (int) $data['project_id'] : null;
+        if (!is_array($ids)) $ids = [];
+        $ids = array_map('intval', array_filter($ids));
+        if (empty($ids)) {
+            echo json_encode(['error' => 'No task IDs provided']);
+            exit;
+        }
+        $placeholders = implode(',', array_fill(0, count($ids), '?'));
+        $stmt = $pdo->prepare("UPDATE tasks SET project_id = ? WHERE user_id = ? AND id IN ($placeholders)");
+        $stmt->execute(array_merge([$project_id ?: null, $user_id], $ids));
+        echo json_encode(['status' => 'updated', 'count' => $stmt->rowCount()]);
     }
 
 } catch (Exception $e) {

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { getAnalytics } from '../api';
 
 function formatDuration(seconds) {
@@ -26,10 +26,15 @@ const LEVEL_COLORS = [
 ];
 
 export default function Analytics() {
+  const navigate = useNavigate();
   const [start, setStart] = useState('');
   const [end, setEnd] = useState('');
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
+
+  const handleClickRestart = (title) => {
+    navigate('/', { state: { startTask: title } });
+  };
 
   useEffect(() => {
     const e = new Date();
@@ -93,14 +98,23 @@ export default function Analytics() {
               />
             </div>
             <div className="flex gap-6 flex-wrap">
-              <div>
-                <div className="text-3xl font-bold">{formatDuration(total)}</div>
-                <div className="text-sm text-slate-500 dark:text-slate-400">Total tracked time</div>
-              </div>
-              <div>
-                <div className="text-3xl font-bold">{activities.length}</div>
-                <div className="text-sm text-slate-500 dark:text-slate-400">Activities</div>
-              </div>
+              {loading ? (
+                <>
+                  <div className="animate-pulse"><div className="h-9 w-24 bg-slate-200 dark:bg-slate-600 rounded" /></div>
+                  <div className="animate-pulse"><div className="h-9 w-16 bg-slate-200 dark:bg-slate-600 rounded" /></div>
+                </>
+              ) : (
+                <>
+                  <div>
+                    <div className="text-3xl font-bold">{formatDuration(total)}</div>
+                    <div className="text-sm text-slate-500 dark:text-slate-400">Total tracked time</div>
+                  </div>
+                  <div>
+                    <div className="text-3xl font-bold">{activities.length}</div>
+                    <div className="text-sm text-slate-500 dark:text-slate-400">Activities</div>
+                  </div>
+                </>
+              )}
             </div>
           </section>
 
@@ -108,7 +122,13 @@ export default function Analytics() {
             <h2 className="text-lg font-semibold mb-2">Contribution heatmap (last 365 days)</h2>
             <p className="text-sm text-slate-500 dark:text-slate-400 mb-3">Tracked time per day.</p>
             <div className="flex flex-wrap gap-0.5">
-              {heatmapCells.map(({ key, sec, level }) => (
+              {loading ? (
+                <div className="flex flex-wrap gap-0.5">
+                  {Array.from({ length: 365 }).map((_, i) => (
+                    <span key={i} className="w-3 h-3 rounded-sm bg-slate-200 dark:bg-slate-600 animate-pulse" style={{ animationDelay: `${i % 20 * 50}ms` }} />
+                  ))}
+                </div>
+              ) : heatmapCells.map(({ key, sec, level }) => (
                 <span
                   key={key}
                   title={`${key}: ${formatDuration(sec)}`}
@@ -127,8 +147,16 @@ export default function Analytics() {
 
           <section className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6">
             <h2 className="text-lg font-semibold mb-3">Time by activity</h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">Click a task to start a new timer with that name.</p>
             {loading ? (
-              <p className="text-sm text-slate-500">Loading...</p>
+              <div className="space-y-3">
+                {[1, 2, 3, 4, 5].map((i) => (
+                  <div key={i} className="space-y-2">
+                    <div className="flex justify-between"><div className="h-4 w-32 bg-slate-200 dark:bg-slate-600 rounded animate-pulse" /><div className="h-4 w-16 bg-slate-200 dark:bg-slate-600 rounded animate-pulse" /></div>
+                    <div className="h-2 rounded-full bg-slate-200 dark:bg-slate-600 animate-pulse" />
+                  </div>
+                ))}
+              </div>
             ) : activities.length === 0 ? (
               <p className="text-sm text-slate-500">No tracked time in this range.</p>
             ) : (
@@ -140,7 +168,13 @@ export default function Analytics() {
                   return (
                     <div key={item.title} className="space-y-1">
                       <div className="flex justify-between text-sm">
-                        <span className="font-medium truncate">{item.title}</span>
+                        <button
+                          type="button"
+                          onClick={() => handleClickRestart(item.title)}
+                          className="font-medium truncate text-left hover:underline text-sky-600 dark:text-sky-400 focus:outline-none"
+                        >
+                          {item.title}
+                        </button>
                         <span className="text-slate-500 flex-shrink-0">{formatDuration(sec)} · {pct.toFixed(0)}%</span>
                       </div>
                       <div className="h-2 rounded-full bg-slate-200 dark:bg-slate-600 overflow-hidden">

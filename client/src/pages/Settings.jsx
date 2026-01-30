@@ -8,6 +8,7 @@ import {
   deleteProject,
   changePassword,
   getExportUrl,
+  getExportCsvUrl,
 } from '../api';
 
 const MAX_QUICK = 8;
@@ -264,14 +265,15 @@ export default function Settings() {
 
           <section className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6">
             <h2 className="text-lg font-semibold mb-2">Data export</h2>
-            <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">Download all tasks as JSON.</p>
-            <a
-              href={getExportUrl()}
-              download
-              className="inline-block px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700"
-            >
-              Export to JSON
-            </a>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">Download tasks as JSON or CSV (Excel-friendly).</p>
+            <div className="flex flex-wrap gap-2">
+              <a href={getExportUrl()} download className="inline-block px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700">
+                Export to JSON
+              </a>
+              <a href={getExportCsvUrl()} download className="inline-block px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700">
+                Export to CSV
+              </a>
+            </div>
           </section>
         </div>
       </div>

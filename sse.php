@@ -1,6 +1,9 @@
 <?php
 require 'config.php';
 
+// Allow long-lived SSE (e.g. 40 loops × 3s = 2 min). Ensure PHP max_execution_time allows this (e.g. 120+).
+@set_time_limit(120);
+
 // Release session lock immediately so other pages (analytics, settings) can load.
 // SSE uses token from GET; we don't need the session for this request.
 session_write_close();
@@ -8,6 +11,7 @@ session_write_close();
 header('Content-Type: text/event-stream');
 header('Cache-Control: no-cache');
 header('Connection: keep-alive');
+// Prevent proxy/buffering so updates are real-time (Apache: ensure mod_proxy_fcgi doesn't buffer).
 header('X-Accel-Buffering: no');
 
 $token = $_GET['token'] ?? '';

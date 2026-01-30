@@ -41,11 +41,12 @@ export async function getStatus() {
   return res.json();
 }
 
-export async function startTimer(title) {
+export async function startTimer(title, description = '') {
   const base = getBase();
   const token = getToken();
   const fd = new FormData();
   fd.append('title', title || 'Untitled Task');
+  if (description) fd.append('description', description);
   const res = await fetch(`${base}/api.php?action=start`, {
     method: 'POST',
     headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -158,6 +159,32 @@ export function getExportUrl() {
   const base = getBase();
   const token = getToken();
   return `${base}/api.php?action=export${token ? '&token=' + encodeURIComponent(token) : ''}`;
+}
+
+export function getExportCsvUrl(start, end) {
+  const base = getBase();
+  const token = getToken();
+  let url = `${base}/api.php?action=export_csv`;
+  if (start) url += '&start=' + encodeURIComponent(start);
+  if (end) url += '&end=' + encodeURIComponent(end);
+  if (token) url += '&token=' + encodeURIComponent(token);
+  return url;
+}
+
+export async function bulkDeleteTaskIds(ids) {
+  const res = await api('/api.php?action=bulk_delete', {
+    method: 'POST',
+    body: JSON.stringify({ ids }),
+  });
+  return res.json();
+}
+
+export async function bulkAssignProject(ids, projectId) {
+  const res = await api('/api.php?action=bulk_assign_project', {
+    method: 'POST',
+    body: JSON.stringify({ ids, project_id: projectId || null }),
+  });
+  return res.json();
 }
 
 export function getSSEUrl() {

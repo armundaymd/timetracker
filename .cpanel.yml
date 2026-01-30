@@ -3,4 +3,10 @@ deployment:
   tasks:
     - export DEPLOYPATH=/home/adamrmunday/public_html/time/
     - /bin/mkdir -p $DEPLOYPATH
-    - /bin/rsync -av --delete --exclude '.git' --exclude '.cpanel.yml' . $DEPLOYPATH
+    # Copy PHP backend and config (exclude client source and build artifacts)
+    - /bin/rsync -av --delete --exclude '.git' --exclude '.cpanel.yml' --exclude 'client' --exclude '.env' . $DEPLOYPATH
+    # Deploy built frontend: copy client/dist contents into web root (run 'npm run build' in client/ locally or in CI before push, or add a build step here if Node is available on the server)
+    - |
+      if [ -d client/dist ]; then
+        /bin/rsync -av client/dist/ $DEPLOYPATH
+      fi
