@@ -155,8 +155,13 @@ $api_url = "http://" . $_SERVER['HTTP_HOST'] . dirname($_SERVER['PHP_SELF']) . "
         }
         #recommendations-dropdown.show { display: block; }
         .recommendations-section { padding: 0.5rem 0.75rem 0.25rem; font-size: 0.75rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
-        .recommendation-item { display: block; width: 100%; padding: 0.6rem 0.75rem; text-align: left; font-size: 0.9375rem; background: none; border: none; color: var(--text); cursor: pointer; border-radius: 0; }
-        .recommendation-item:hover, .recommendation-item:focus { background: var(--bg-page); }
+        .recommendation-row { display: flex; align-items: center; gap: 0.5rem; width: 100%; padding: 0.5rem 0.75rem; border-radius: 4px; }
+        .recommendation-row:hover { background: var(--bg-page); }
+        .recommendation-item { flex: 1; min-width: 0; padding: 0.25rem 0; text-align: left; font-size: 0.9375rem; background: none; border: none; color: var(--text); cursor: pointer; border-radius: 0; }
+        .recommendation-item:hover, .recommendation-item:focus { background: none; }
+        .recommendation-star { flex-shrink: 0; width: 32px; height: 32px; padding: 0; font-size: 1.1rem; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-page); color: #b45309; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+        .recommendation-star:hover { background: rgba(180, 83, 9, 0.15); }
+        .recommendation-star.fav { color: #b45309; }
     </style>
 </head>
 <body>
@@ -530,10 +535,12 @@ function showRecommendations() {
     if (favoritesList.length > 0) {
         const section = document.createElement('div');
         section.className = 'recommendations-section';
-        section.textContent = 'Recommended';
+        section.textContent = 'RECOMMENDED';
         dropdown.appendChild(section);
         const filtered = val ? favoritesList.filter(t => t.toLowerCase().includes(val)) : favoritesList.slice(0, 8);
         filtered.forEach(title => {
+            const row = document.createElement('div');
+            row.className = 'recommendation-row';
             const btn = document.createElement('button');
             btn.type = 'button';
             btn.className = 'recommendation-item';
@@ -543,18 +550,29 @@ function showRecommendations() {
                 dropdown.classList.remove('show');
                 updateStarState();
             });
-            dropdown.appendChild(btn);
+            const starBtn = document.createElement('button');
+            starBtn.type = 'button';
+            starBtn.className = 'recommendation-star fav';
+            starBtn.innerHTML = '★';
+            starBtn.title = 'Remove from favorites';
+            starBtn.addEventListener('mousedown', (e) => { e.preventDefault(); });
+            starBtn.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); toggleFavoriteFor(title); });
+            row.appendChild(btn);
+            row.appendChild(starBtn);
+            dropdown.appendChild(row);
             hasItems = true;
         });
     }
     if (historyList.length > 0) {
         const section = document.createElement('div');
         section.className = 'recommendations-section';
-        section.textContent = 'Recent';
+        section.textContent = 'RECENT';
         dropdown.appendChild(section);
         const filtered = val ? historyList.filter(t => t.toLowerCase().includes(val)) : historyList.slice(0, 6);
         filtered.forEach(title => {
             if (favoritesList.includes(title)) return;
+            const row = document.createElement('div');
+            row.className = 'recommendation-row';
             const btn = document.createElement('button');
             btn.type = 'button';
             btn.className = 'recommendation-item';
@@ -564,7 +582,16 @@ function showRecommendations() {
                 dropdown.classList.remove('show');
                 updateStarState();
             });
-            dropdown.appendChild(btn);
+            const starBtn = document.createElement('button');
+            starBtn.type = 'button';
+            starBtn.className = 'recommendation-star';
+            starBtn.innerHTML = '☆';
+            starBtn.title = 'Add to favorites';
+            starBtn.addEventListener('mousedown', (e) => { e.preventDefault(); });
+            starBtn.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); toggleFavoriteFor(title); });
+            row.appendChild(btn);
+            row.appendChild(starBtn);
+            dropdown.appendChild(row);
             hasItems = true;
         });
     }
@@ -633,6 +660,11 @@ function copySubscribeUrl() {
 function toggleFavorite() {
     const title = document.getElementById('task-input').value.trim();
     if (!title) return;
+    toggleFavoriteFor(title);
+}
+
+function toggleFavoriteFor(title) {
+    if (!title) return;
     fetch('api.php?action=toggle_favorite', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -647,6 +679,7 @@ function toggleFavorite() {
         }
         loadHistory();
         updateStarState();
+        showRecommendations();
     })
     .catch(() => {});
 }
