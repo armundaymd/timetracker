@@ -618,7 +618,10 @@ export default function Tracker() {
               </button>
               <button
                 type="button"
-                onClick={() => { confirmModal.onConfirm(); }}
+                onClick={() => {
+                if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+                confirmModal.onConfirm();
+              }}
                 className="px-4 py-2 rounded-lg bg-red-500 hover:bg-red-600 text-white"
               >
                 Delete

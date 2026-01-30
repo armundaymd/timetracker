@@ -783,10 +783,18 @@ function doDeleteEvent() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id })
     }).then(() => {
+        var confirmEl = document.getElementById('confirmDeleteModal');
+        if (confirmEl && confirmEl.contains(document.activeElement)) {
+            document.activeElement.blur();
+        }
         confirmDeleteModal.hide();
         modal.hide();
         calendar.refetchEvents();
     }).catch(() => {
+        var confirmEl = document.getElementById('confirmDeleteModal');
+        if (confirmEl && confirmEl.contains(document.activeElement)) {
+            document.activeElement.blur();
+        }
         confirmDeleteModal.hide();
         modal.hide();
     });
