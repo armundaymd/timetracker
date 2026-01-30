@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import FullCalendar from '@fullcalendar/react';
 import timeGridPlugin from '@fullcalendar/timegrid';
@@ -55,6 +56,7 @@ export default function Tracker() {
   const prevFaviconRef = useRef(null);
   const dropdownRef = useRef(null);
   const [showHistoryDropdown, setShowHistoryDropdown] = useState(false);
+  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 0 });
   const hideDropdownTimerRef = useRef(null);
 
   const fetchStatus = useCallback(async () => {
@@ -364,6 +366,11 @@ export default function Tracker() {
                   onFocus={() => {
                     if (hideDropdownTimerRef.current) clearTimeout(hideDropdownTimerRef.current);
                     setShowHistoryDropdown(true);
+                    const el = taskInputRef.current;
+                    if (el) {
+                      const rect = el.getBoundingClientRect();
+                      setDropdownPosition({ top: rect.bottom + 4, left: rect.left, width: rect.width });
+                    }
                   }}
                   onBlur={() => {
                     hideDropdownTimerRef.current = setTimeout(() => setShowHistoryDropdown(false), 180);
@@ -371,45 +378,56 @@ export default function Tracker() {
                   placeholder="What are you doing? (or Project: task) — N to focus"
                   className="w-full rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 px-4 py-3 focus:ring-2 focus:ring-sky-500 focus:border-transparent"
                 />
-                {showHistoryDropdown && history.length > 0 && (
+                {showHistoryDropdown && createPortal(
                   <div
-                    className="absolute left-0 right-0 top-full mt-1 z-50 max-h-60 overflow-auto rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 shadow-lg py-1"
+                    className="fixed z-[9999] max-h-60 overflow-auto rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 shadow-xl py-1 min-w-[200px]"
+                    style={{ top: dropdownPosition.top, left: dropdownPosition.left, width: Math.max(dropdownPosition.width, 200) }}
                     onMouseDown={(e) => e.preventDefault()}
                   >
-                    {history.map((title) => (
-                      <div
-                        key={title}
-                        className="flex items-center gap-2 w-full px-3 py-2 hover:bg-slate-100 dark:hover:bg-slate-700 text-left"
-                      >
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setTaskTitle(title);
-                            setShowHistoryDropdown(false);
-                            taskInputRef.current?.focus();
-                          }}
-                          className="flex-1 min-w-0 truncate text-left text-sm"
-                        >
-                          {title}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={async () => {
-                            try {
-                              await toggleFavorite(title);
-                              const list = await getFavorites();
-                              setFavorites(list || []);
-                            } catch {}
-                          }}
-                          title={favorites.includes(title) ? 'Remove from favorites' : 'Add to favorites'}
-                          className="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded text-base text-amber-500 hover:bg-slate-200 dark:hover:bg-slate-600"
-                          aria-label={favorites.includes(title) ? `Unstar ${title}` : `Star ${title}`}
-                        >
-                          {favorites.includes(title) ? '★' : '☆'}
-                        </button>
+                    <div className="px-3 py-1.5 text-xs text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-slate-700">
+                      Recent & favorites — click ★ to add/remove favorite
+                    </div>
+                    {history.length === 0 ? (
+                      <div className="px-3 py-4 text-sm text-slate-500 dark:text-slate-400">
+                        No recent tasks. Start a timer to see them here.
                       </div>
-                    ))}
-                  </div>
+                    ) : (
+                      history.map((title) => (
+                        <div
+                          key={title}
+                          className="flex items-center gap-2 w-full px-3 py-2 hover:bg-slate-100 dark:hover:bg-slate-700 text-left"
+                        >
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setTaskTitle(title);
+                              setShowHistoryDropdown(false);
+                              taskInputRef.current?.focus();
+                            }}
+                            className="flex-1 min-w-0 truncate text-left text-sm"
+                          >
+                            {title}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              try {
+                                await toggleFavorite(title);
+                                const list = await getFavorites();
+                                setFavorites(list || []);
+                              } catch {}
+                            }}
+                            title={favorites.includes(title) ? 'Remove from favorites' : 'Add to favorites'}
+                            className="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded text-lg text-amber-500 hover:bg-amber-500/20 dark:hover:bg-amber-500/20"
+                            aria-label={favorites.includes(title) ? `Unstar ${title}` : `Star ${title}`}
+                          >
+                            {favorites.includes(title) ? '★' : '☆'}
+                          </button>
+                        </div>
+                      ))
+                    )}
+                  </div>,
+                  document.body
                 )}
               </div>
               <button
