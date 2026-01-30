@@ -19,6 +19,16 @@ Full-stack time tracker: React frontend + PHP API (MySQL).
 
 3. **Run schema** – Import `schema.sql` into your database (phpMyAdmin or MySQL).
 
-4. **Deploy** – Use `.cpanel.yml` or upload the repo; ensure `client/dist/` and the PHP files are in your web directory.
+4. **Build the React app** (before deploy):
+   ```bash
+   cd client && npm run build
+   ```
 
-See `client/README.md` for building the React app (`cd client && npm run build`).
+5. **Deploy** – Use `.cpanel.yml` or upload manually:
+   - Copy **all PHP files** (api.php, config.php, sse.php, etc.) and `.htaccess` to `/time/`.
+   - Copy **contents of `client/dist/`** into `/time/`: `index.html` and the `assets/` folder. So you get `/time/index.html` and `/time/assets/`.
+   - `.htaccess` is set so `/time/` serves `index.html` (React app) first; the PHP tracker is still at `/time/index.php` if you want it.
+
+After deploy, **https://www.adamrmunday.com/time/** loads the React app.
+
+See `client/README.md` for more on the client.

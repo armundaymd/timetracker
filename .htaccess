@@ -1,3 +1,6 @@
+# Serve React app at /time/ (index.html) before PHP tracker (index.php)
+DirectoryIndex index.html index.php
+
 # Deny web access to sensitive files
 <Files ".env">
     Require all denied
