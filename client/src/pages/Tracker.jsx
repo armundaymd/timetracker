@@ -408,21 +408,22 @@ export default function Tracker() {
                           >
                             {title}
                           </button>
-                          <button
-                            type="button"
-                            onClick={async () => {
-                              try {
-                                await toggleFavorite(title);
-                                const list = await getFavorites();
-                                setFavorites(list || []);
-                              } catch {}
-                            }}
-                            title={favorites.includes(title) ? 'Remove from favorites' : 'Add to favorites'}
-                            className="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded text-lg text-amber-500 hover:bg-amber-500/20 dark:hover:bg-amber-500/20"
-                            aria-label={favorites.includes(title) ? `Unstar ${title}` : `Star ${title}`}
-                          >
-                            {favorites.includes(title) ? '★' : '☆'}
-                          </button>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            try {
+                              await toggleFavorite(title);
+                              const list = await getFavorites();
+                              setFavorites(list || []);
+                            } catch {}
+                          }}
+                          title={favorites.includes(title) ? 'Remove from favorites' : 'Add to favorites'}
+                          className="flex-shrink-0 flex items-center gap-1 px-2 py-1.5 rounded-md border border-amber-400 dark:border-amber-500 bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-800/50 text-sm font-medium"
+                          aria-label={favorites.includes(title) ? `Unstar ${title}` : `Star ${title}`}
+                        >
+                          <span className="text-base leading-none" aria-hidden>{favorites.includes(title) ? '★' : '☆'}</span>
+                          <span>{favorites.includes(title) ? 'Fav' : 'Star'}</span>
+                        </button>
                         </div>
                       ))
                     )}
