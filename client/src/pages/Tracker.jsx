@@ -53,6 +53,9 @@ export default function Tracker() {
   const calendarRef = useRef(null);
   const taskInputRef = useRef(null);
   const prevFaviconRef = useRef(null);
+  const dropdownRef = useRef(null);
+  const [showHistoryDropdown, setShowHistoryDropdown] = useState(false);
+  const hideDropdownTimerRef = useRef(null);
 
   const fetchStatus = useCallback(async () => {
     try {
@@ -352,18 +355,63 @@ export default function Tracker() {
                   <option key={p.id} value={p.id}>{p.name}</option>
                 ))}
               </select>
-              <input
-                ref={taskInputRef}
-                type="text"
-                value={taskTitle}
-                onChange={(e) => setTaskTitle(e.target.value)}
-                placeholder="What are you doing? (or Project: task) — N to focus"
-                list="history-list"
-                className="flex-1 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 px-4 py-3 focus:ring-2 focus:ring-sky-500 focus:border-transparent"
-              />
-              <datalist id="history-list">
-                {history.map((item) => <option key={item} value={item} />)}
-              </datalist>
+              <div className="flex-1 relative" ref={dropdownRef}>
+                <input
+                  ref={taskInputRef}
+                  type="text"
+                  value={taskTitle}
+                  onChange={(e) => setTaskTitle(e.target.value)}
+                  onFocus={() => {
+                    if (hideDropdownTimerRef.current) clearTimeout(hideDropdownTimerRef.current);
+                    setShowHistoryDropdown(true);
+                  }}
+                  onBlur={() => {
+                    hideDropdownTimerRef.current = setTimeout(() => setShowHistoryDropdown(false), 180);
+                  }}
+                  placeholder="What are you doing? (or Project: task) — N to focus"
+                  className="w-full rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 px-4 py-3 focus:ring-2 focus:ring-sky-500 focus:border-transparent"
+                />
+                {showHistoryDropdown && history.length > 0 && (
+                  <div
+                    className="absolute left-0 right-0 top-full mt-1 z-50 max-h-60 overflow-auto rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 shadow-lg py-1"
+                    onMouseDown={(e) => e.preventDefault()}
+                  >
+                    {history.map((title) => (
+                      <div
+                        key={title}
+                        className="flex items-center gap-2 w-full px-3 py-2 hover:bg-slate-100 dark:hover:bg-slate-700 text-left"
+                      >
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setTaskTitle(title);
+                            setShowHistoryDropdown(false);
+                            taskInputRef.current?.focus();
+                          }}
+                          className="flex-1 min-w-0 truncate text-left text-sm"
+                        >
+                          {title}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            try {
+                              await toggleFavorite(title);
+                              const list = await getFavorites();
+                              setFavorites(list || []);
+                            } catch {}
+                          }}
+                          title={favorites.includes(title) ? 'Remove from favorites' : 'Add to favorites'}
+                          className="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded text-base text-amber-500 hover:bg-slate-200 dark:hover:bg-slate-600"
+                          aria-label={favorites.includes(title) ? `Unstar ${title}` : `Star ${title}`}
+                        >
+                          {favorites.includes(title) ? '★' : '☆'}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
               <button
                 type="button"
                 onClick={handleStar}
